@@ -96,6 +96,7 @@ hand-edited (see §4). Default name `presentation.md` (the training repo's
 ## Followups                        ← H2 meta section (checkbox list)
 ## Slides                           ← H2, exactly one, fixed name "Slides"
 ### <Slide 1 title>                 ← H3, one per slide
+#### deck: <Section>            ← H4 `deck:`-prefixed sections (§2.2)
 ### <Slide 2 title>
 ...
 ```
@@ -110,25 +111,43 @@ deck's YOLO slide carries a code block with `#` comment lines).
 
 ### 2.2 Per-slide body
 
-Under each `### slide`, keep the proven subsection labels (bold, not headings —
-so we don't spend H4/H5 on them):
+The slide body is **everything under the `### title`** (after the metadata
+comment, §2.3) up to the first `#### deck:`-prefixed heading — there is no
+"Content" label. Machine-relevant sections follow as H4 headings carrying the
+**`deck:` prefix**, which is what lets the transform cut without reserving
+plain H4s:
 
 ```
 ### Skills — share yours
+<!-- media: pending -->
 
-**Content**
-- bullets that become the slide body
+Anything here is the slide body: prose, bullets, fenced code —
+![and produced media](output/skills.gif)
 
-**Media**
-- what to show; once produced, an ![alt](path) tag OR an inline code block OR
-  an explicit "live screen-share / none"
+#### deck: Media
+- what to show while unproduced: a capture directive, "live screen-share",
+  "none" — once produced, the asset tag moves up into the body
 
-**Speaker notes**
-- only what will be said out loud → become presenter notes in the deck (§4)
+#### deck: Notes
+- only what will be said out loud → the slide's presenter notes (§4)
 
-**Knowledge** (optional)
-- research trail, verbatim doc quotes, citations as owner/repo#NNNNN
+#### deck: Knowledge
+- optional: research trail, verbatim doc quotes, citations as owner/repo#NNNNN
 ```
+
+Section names match case-insensitively; an unknown `deck:` section is a lint
+finding (§5.1); a plain H4 without the prefix is ordinary content. **Ordering
+rule:** body content lives strictly *before* the first `#### deck:` heading —
+once sections start, everything up to the next slide belongs to the current
+section, so a plain H4 appearing inside a `deck:` section is unreachable as a
+content heading and is a lint finding (move it above the sections), never
+silently absorbed.
+
+**Heading budget.** The transform promotes the slide title H3 → H1, and
+in-slide content headings shift with it: H4 → H2, H5 → H3, H6 → H4. Markdown
+stops at H6, so content can't nest deeper than a rendered H4 — fine for
+PowerPoint-like content. The plan skill documents these format limitations to
+the authoring agent (build plan M7).
 
 ### 2.3 Per-slide metadata — HTML comment, `key: value` lines
 
@@ -170,6 +189,12 @@ kramdown IALs `{: key="val"}`, MyST field lists, Djot brace attributes):
   and keeps pipeline-only keys like `media: done` to itself" is one idea, not
   three. There is prior art for the exact shape (zeke/html-frontmatter,
   MultiMarkdown metadata).
+
+Beyond pipeline keys (`media:`) and the named layout hints, a repeatable
+**`marp:` passthrough key** carries a raw Marp directive verbatim (e.g.
+`marp: transition: fade` — the parser splits on the *first* colon; the value
+is emitted as a `_`-prefixed spot directive per §4). It is the escape hatch
+that keeps rare layout needs from ever forcing a hand edit downstream.
 
 **Collision caveat for the generated `slides.md` (not the source).** Marp treats
 *every* HTML comment as either a directive or a presenter note. So when the
@@ -301,12 +326,15 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
   (e.g. `.build/`). It exists on disk for debugging but is not authored or
   committed. This structurally **eliminates the drift** that plagued the past
   work (a hand-derived `slides.md` diverging from the plan).
-- The transform maps: **Content** → slide body; **Media** image tags / code
-  blocks → kept; **Speaker notes** → a **presenter-note HTML comment** in the
+- The transform maps: the **body** (everything between the metadata comment
+  and the first `#### deck:` heading) → slide content, headings promoted two
+  levels (title H3 → H1, content H4 → H2 … H6 → H4, §2.2); **`deck: Media`**
+  → dropped from output (it holds pre-media intent; produced assets live in
+  the body); **`deck: Notes`** → a **presenter-note HTML comment** in the
   generated slides.md (any comment Marp doesn't recognize as a directive is
   collected as that slide's note, surfaced in presenter view and PPTX export);
-  **Knowledge** → dropped (or optionally emitted as `> If asked` blockquotes);
-  per-slide **metadata** → Marp layout directives. Use the **`_`-prefixed spot
+  **`deck: Knowledge`** → dropped (or optionally emitted as `> If asked`
+  blockquotes); per-slide **metadata** → Marp layout directives. Use the **`_`-prefixed spot
   form** (`<!-- _class: lead -->`, `<!-- _paginate: false -->`) for per-slide
   scope — plain local directives *inherit forward* to all following slides,
   which is a footgun when set per slide. Keep the presenter-note comment and the
@@ -319,6 +347,36 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
   into the theme CSS between markers; Marp inlines the theme verbatim), so the
   published deck is self-contained with no publish-script changes.
 
+**Direct Marp authoring — evaluated, rejected (2026-07-24).** The alternative
+(meta sections in an `info.md`, the agent authoring `slides.md` directly as
+the Marp file, no translation) was seriously weighed against the session
+corpus. It loses on three corpus-recorded grounds — none of which is drift;
+collapsing to one artifact would fix drift just as well as generating from
+one source:
+
+1. **The speaker-notes dilemma.** Notes-as-HTML-comments were offered in the
+   past sessions and rejected as source clutter; the separate
+   `speaker-notes.md` then caused the drift regret. Both positions available
+   in a hand-authored Marp file are bad; the authored-subsection →
+   emitted-comment translation is the only third option.
+2. **Pre-media intent.** Before media exists, a slide carries prose describing
+   *what to show* — it needs a visible-but-unrendered home that raw Marp
+   doesn't have.
+3. **State leakage.** Marp collects every unrecognized comment as a presenter
+   note, so per-slide pipeline state (`media: done`) in a raw Marp file leaks
+   into presenter view and PPTX export. The escapes are worse: a strip filter
+   is itself a transform (so "no transform" collapses — the comparison is
+   translation-transform vs strip-transform, and the parser is needed either
+   way for lint/status; only the cheap emitter differs), and title-keyed
+   external state reintroduces the §5.2 fragility a literal-minded executor
+   trips over (§7).
+
+The strongest pro-direct argument — layout iteration landing one indirection
+from the artifact — is neutralized by bg-image syntax passing through
+verbatim in the slide body plus the `marp:` passthrough key (§2.3). If this
+is ever revisited, the fallback design is namespaced comments + strip filter,
+never title-keyed external state.
+
 ---
 
 ## 5. Fixes to bake in (each was paid for in rework)
@@ -326,6 +384,15 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
 ### 5.1 One source, everything else generated
 Covered by §2 + §4. The rule: humans and agents edit only `presentation.md`;
 `slides.md`, `slides.html`, and the embedded HTML are all build outputs.
+
+And humans *will* edit `presentation.md` by hand — that's the point of an
+authoring format — so the format is a contract with people, not just tooling:
+the transform must **never silently drop content it doesn't recognize**
+(unknown subsection labels, stray content between anchors → lint findings
+with line numbers, never quiet loss), and `--lint` is the safety net that
+keeps hand edits honest. The generated `slides.md` opens with a do-not-edit
+banner as a **YAML comment inside the frontmatter** — an HTML comment there
+would be collected as slide 1's presenter note.
 
 ### 5.2 Media "done" is explicit metadata, not "has an image tag"
 The worst dead end in the corpus: a fresh session re-flagged an already-resolved
@@ -367,7 +434,11 @@ per-slide `{title, mediaState, assets}` JSON for `/media` — one parser, two
 consumers): confirm every asset path referenced in the source resolves on
 disk, and flag
 orphaned media referenced nowhere (cutting a slide once left dead gifs + a stale
-tape registration).
+tape registration). Also flag **state/section incoherence**: a `deck: Media`
+section on a `media: done | none` slide is stale intent; `media: pending |
+handoff` with *no* `deck: Media` section is a missing directive; and the
+§2.2 ordering rule (plain H4 inside a `deck:` section = unreachable content
+heading).
 
 ### 5.6 Auto-discover captures
 The old `generate.sh` used a manually-maintained `TAPES` array — "a tape left out
@@ -533,7 +604,8 @@ may land in the open-source repo.
 **Theme verification habit to encode:** never declare a theme done from source
 inspection — export representative slide types (cover/lead, bg-image, bullet,
 code/table) to PNG, Read them, and grep the *compiled* HTML to confirm the
-cascade won where Marp's default theme could conflict.
+cascade won where Marp's default theme could conflict. The kitchen-sink
+fixture (build plan M3) supplies exactly one slide per class for this.
 
 ---
 
@@ -590,7 +662,24 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   machine only; snapshot-copy what's needed, scrub WTTJ-branded material.
 - **Brand kits fully self-contained** ✔ — fonts copied in, never referenced
   across repos (§8).
+- **Direct Marp authoring rejected** ✔ — the single-source design was
+  challenged and re-argued against the session corpus (over claude-peers);
+  `presentation.md` + transform stands, on the notes dilemma / pre-media
+  intent / state-leakage grounds (§4), explicitly *not* on drift. Added the
+  `marp:` passthrough key (§2.3) and the hand-edit robustness principle
+  (§5.1).
+- **Per-slide body format v2** ✔ — bold subsection labels replaced by
+  `deck:`-prefixed H4 sections (`Media` / `Notes` / `Knowledge`); the body is
+  label-free (everything before the first `#### deck:`), produced assets live
+  in the body, and content headings H4–H6 are freed for real use (promoted
+  two levels with the title, §2.2).
+- **Golden fixture is purpose-built, not migrated** ✔ — a hand-authored
+  kitchen-sink deck in `test/fixtures/`, deliberately covering the format's
+  edge-case matrix plus one slide per brand-kit slide class (it doubles as
+  the theme-preview deck, §8). The training-deck migration and the peer
+  coordination around it are cancelled; the training repo is a passive
+  resource mine (script ports, WTTJ styles) the user draws from directly.
 
 Still open: nothing blocking. Next step: scaffold §8 and write
-`plan-to-slides.mjs`, validated against the golden fixture (the training
-deck, migrated to the §2 format — see the build plan's M3).
+`plan-to-slides.mjs`, validated against the purpose-built kitchen-sink
+fixture (build plan M3).

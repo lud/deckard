@@ -7,17 +7,18 @@ checkboxes as work lands.
 
 **Where the code lives:** its own repo at `~/src/deckard` — this repo, which
 also carries these two docs (done 2026-07-25 — no extraction milestone
-needed). The **training repo** is at `~/src/017.claude-code-training-2` (this
-machine only); it holds the originals referenced below (`embed-fonts.sh`,
-`publish.sh`, `generate.sh`, `.claude/skills/next-media/`, `themes/`,
-`style.css`, `slides.html`, `blueprints/`, `process/transcript.py`) and
-produces the golden fixture (M3). Iterate by starting test sessions
-with `claude --plugin-dir ~/src/deckard` (in a scratch project or in the
-training repo) and `/reload-plugins` after edits. Everything Deckard needs is
-**snapshot-copied** in at the milestone that needs it — runtime, tests, and CI
-never reference training-repo paths. Scrub rule when copying: no WTTJ-branded
-material (theme, fonts, logos) lands in this open-source repo; brand material
-goes only into the private kit dir at M8.
+needed). The old **training repo** (`~/src/017.claude-code-training-2`, this
+machine only) is a passive resource mine, nothing more: originals worth
+consulting when porting (`embed-fonts.sh`, `publish.sh`, `generate.sh`,
+`.claude/skills/next-media/`, `blueprints/`, `process/transcript.py`) and the
+WTTJ styles the user retrieves at M8 (`themes/`, `style.css`, fonts). No
+coordination with it, and no artifact from it, is on the critical path.
+Iterate by starting test sessions with `claude --plugin-dir ~/src/deckard` in
+a scratch project, with `/reload-plugins` after edits. Anything taken from
+the training repo is **snapshot-copied** in — runtime, tests, and CI never
+reference its paths. Scrub rule when copying: no WTTJ-branded material
+(theme, fonts, logos) lands in this open-source repo; brand material goes
+only into the private kit dir at M8.
 
 **Testing baseline (all milestones):** Node **≥ 22** (stable `node --test`,
 `fs.globSync`); zero-dep `node --test` under `test/`; `claude plugin
@@ -71,35 +72,52 @@ and re-running it changes nothing.
 The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
 
 - [ ] Parser: `## Slides` anchor; one slide per H3; leading HTML-comment
-      `key: value` metadata block; `**Content**` / `**Media**` /
-      `**Speaker notes**` / `**Knowledge**` subsections.
-- [ ] Emitter: Content → body; Media images/code kept; Speaker notes → a
-      **separate** presenter-note comment; Knowledge dropped; layout keys →
-      `_`-prefixed Marp directives; pipeline keys (`media:`) never emitted;
-      no unnamespaced key that collides with a Marp directive name (§2.3).
+      `key: value` metadata block; body = everything up to the first
+      `#### deck:` heading; `deck:`-prefixed H4 sections (`Media` / `Notes` /
+      `Knowledge`, case-insensitive; unknown names = lint finding; a plain
+      H4 without the prefix is content).
+- [ ] Emitter: body → slide with headings promoted two levels (title
+      H3 → H1, content H4 → H2 … H6 → H4); `deck: Media` dropped (produced
+      assets live in the body); `deck: Notes` → a **separate**
+      presenter-note comment; `deck: Knowledge` dropped; layout keys →
+      `_`-prefixed Marp directives; repeatable `marp:` passthrough key →
+      raw spot directive (§2.3); pipeline keys (`media:`) never emitted;
+      no unnamespaced key that collides with a Marp directive name (§2.3);
+      generated file opens with a do-not-edit **YAML comment inside the
+      frontmatter** (an HTML comment there becomes slide 1's presenter
+      note, §5.1).
 - [ ] `--lint`: every referenced asset resolves on disk; orphaned media in
       `output/`/`assets/` flagged; malformed metadata blocks reported with
-      line numbers.
+      line numbers; unrecognized content (unknown `deck:` section names,
+      stray content between anchors, plain H4 inside a `deck:` section —
+      the §2.2 ordering rule) is a finding with a line number — the
+      transform never silently drops it (§5.1, hand-edit robustness);
+      state/section coherence per §5.5 (`deck: Media` present on a
+      `done | none` slide = stale intent; `pending | handoff` with no
+      `deck: Media` = missing directive).
 - [ ] Unit tests: metadata edge cases, directive scoping, note-vs-directive
-      separation, slides with no media, meta sections ignored, `#`-prefixed
-      lines inside fenced code not parsed as headings (§2.1, the YOLO-slide
-      case).
-- [ ] **Golden fixture:** `test/fixtures/` holds a real full-size deck in §2
-      format — a `presentation.md`, the assets it references (stubs are fine;
-      lint checks existence), and the expected `slides.md` — with a
-      golden-file test: transform(fixture) ≡ committed expected output. The
-      fixture is the training deck, migrated to the §2 format by the
-      training-repo session (agreed 2026-07-24 over claude-peers — that side
-      has the deck context to eyeball fidelity, and the migration doubles as
-      that repo's own move to the Deckard format; ping peer `fyhlq2ki` if it
-      isn't ready when M3 starts) and snapshot-copied here. After the copy,
-      nothing references the training repo.
-- [ ] Optional second lint fixture: a deck with a deliberately orphaned
-      asset (the training deck's cut "advisor tool" slide left real orphaned
-      media — the §5.5 case) to exercise orphan detection.
+      separation, slides with no media, meta sections ignored, heading
+      promotion (H4–H6 → H2–H4; plain H4 is content, `deck:` H4 is a
+      section, case-insensitive), `#`-prefixed lines inside fenced code not
+      parsed as headings (§2.1, the YOLO-slide case).
+- [ ] **Golden fixture — purpose-built in this repo:** `test/fixtures/`
+      holds a hand-authored **kitchen-sink deck** in §2 format — a
+      `presentation.md`, the assets it references (stubs are fine; lint
+      checks existence), and the expected `slides.md` — with a golden-file
+      test: transform(fixture) ≡ committed expected output. Authored to
+      *document the format by example*: it deliberately covers the edge-case
+      matrix (every `deck:` section, every `media:` state, heading promotion
+      H4–H6 → H2–H4, fenced code containing `#`-prefixed lines, `marp:`
+      passthrough, layout keys, a slide with no media, meta sections above
+      `## Slides`) and one slide per **slide class** the brand kits style
+      (cover/lead, bg-image aside, bullets, code/table) — the same deck
+      later serves M8's theme-verification exports and layout iteration.
+- [ ] Lint fixtures: small deliberately-broken decks asserting each `--lint`
+      finding (missing asset, orphaned asset, malformed metadata, unknown
+      `deck:` section, unreachable plain H4, state/section incoherence).
 
-**Done when:** the golden test passes and `--lint` on the fixture reports
-clean (or exactly the known, documented exceptions).
+**Done when:** the golden test passes, the kitchen-sink fixture lints clean,
+and each lint fixture produces exactly its expected finding.
 
 ## M4 — Build & publish (`/deck:build`)
 
@@ -116,12 +134,12 @@ clean (or exactly the known, documented exceptions).
       rendered output).
 - [ ] `skills/build/SKILL.md` — runs lint + build + publish, reports
       human-readably (lint findings, output paths, sizes).
-- [ ] Verification on the fixture: built HTML renders the same deck as the
-      training repo's `slides.html` (spot-check slides incl. presenter notes
-      in Marp's presenter view; parity of content, not bytes).
+- [ ] Verification: build the kitchen-sink fixture and review per the §8
+      habit — export representative slide PNGs, Read them, check presenter
+      notes in Marp's presenter view.
 
-**Done when:** `/deck:build` reproduces this repo's deck end-to-end from the
-converted fixture.
+**Done when:** `/deck:build` takes the kitchen-sink fixture to rendered,
+publishable HTML end-to-end.
 
 ## M5 — Autobuild hook
 
@@ -153,7 +171,8 @@ Generalization of the training repo's `.claude/skills/next-media/`.
 - [ ] Three-way classification (§2.4) with the "code block before screenshot"
       check; explicit `media: done | pending | handoff | none` updates
       (`handoff` set explicitly, never inferred from a capture directive);
-      manual-handoff emits a precise capture directive into the slide.
+      manual-handoff emits a precise capture directive into the slide's
+      `deck: Media` section.
 - [ ] `skills/media/capture-vhs.md` — the §5.4 VHS lore, linked on demand.
 - [ ] `scripts/regenerate-media.mjs` — glob `blueprints/**/*.tape` (fix 5.6,
       `fs.globSync`), run each; no manual list.
@@ -175,7 +194,10 @@ Prompt-craft; §3 already contains the working prompts.
       directional, §3 P1).
 - [ ] `skills/plan/SKILL.md` — narrative first, then whole-set draft, then
       one-slide-at-a-time iteration; pushes back if `notes.md` is thin;
-      re-run = reconcile, report the diff.
+      re-run = reconcile, report the diff; documents the source-format
+      limitations to the authoring agent (§2.2 heading budget — title
+      H3 → H1, content H4–H6 → H2–H4, nothing deeper; `deck:` sections;
+      inline-image-syntax-only).
 - [ ] Dry-run verification: toy `data/` folder (a survey CSV + a notes file),
       run ideate → plan → build end-to-end on a 5-slide throwaway deck.
 
@@ -186,15 +208,16 @@ Prompt-craft; §3 already contains the working prompts.
 
 - [ ] `brand-kits/default/` — neutral `theme.css` (+ minimal `kit.md`);
       referenced by the skeleton `deckard.json`.
-- [ ] Extract the **WTTJ kit** from the training repo (`themes/`,
-      `style.css`, fonts) into a private directory following the contract —
-      fully self-contained, fonts **copied** in, never referenced across
-      repos; ask the user where the private dir/repo should live; point the
-      training repo's config at it; rebuild the fixture with it.
+- [ ] Extract the **WTTJ kit** (the user retrieves `themes/`, `style.css`,
+      and fonts from the training repo) into a private directory following
+      the contract — fully self-contained, fonts **copied** in, never
+      referenced across repos; ask the user where the private dir/repo
+      should live; rebuild the kitchen-sink fixture with it.
 - [ ] Kit resolution in the scripts: path from `deckard.json`, fallback to
       the bundled default; clear error when a kit lacks `theme.css`.
-- [ ] Theme verification habit (§8): export representative slide PNGs and
-      review; grep compiled HTML for cascade conflicts with Marp defaults.
+- [ ] Theme verification habit (§8): export representative slide PNGs (the
+      kitchen-sink fixture supplies one slide per class) and review; grep
+      compiled HTML for cascade conflicts with Marp defaults.
 
 **Done when:** switching kits is a one-line config change and the fixture
 builds correctly under both.
@@ -204,9 +227,6 @@ builds correctly under both.
 (The repo split already happened — deckard was born as its own repo at
 `~/src/deckard`.)
 
-- [ ] The training repo switches from `--plugin-dir` to a normal plugin
-      install and keeps only its project files (`presentation.md`,
-      `deckard.json`, media, built outputs).
 - [ ] README (install, quickstart, the four phases, Node ≥ 22 requirement),
       license, marketplace metadata; `utils/transcript.py` ships as the
       standalone retrospective tool.
