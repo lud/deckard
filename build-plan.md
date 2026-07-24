@@ -5,16 +5,23 @@ and strictly ordered by dependency; each one ends with something **working and
 verified**, so any session can pick up at the first unchecked box. Update the
 checkboxes as work lands.
 
-**Where the code lives:** its own repo at `~/src/deckard` (done 2026-07-25 —
-no extraction milestone needed). Iterate by starting test sessions with
-`claude --plugin-dir ~/src/deckard` (in a scratch project or in this training
-repo) and `/reload-plugins` after edits. This repo stays the source of the
-golden fixture, but the fixture is **copied** into the deckard repo's test
-tree — its tests must not reach outside their repo.
+**Where the code lives:** its own repo at `~/src/deckard` — this repo, which
+also carries these two docs (done 2026-07-25 — no extraction milestone
+needed). The **training repo** is at `~/src/017.claude-code-training-2` (this
+machine only); it holds the originals referenced below (`embed-fonts.sh`,
+`publish.sh`, `generate.sh`, `.claude/skills/next-media/`, `themes/`,
+`style.css`, `slides.html`, `blueprints/`, `process/transcript.py`) and
+produces the golden fixture (M3). Iterate by starting test sessions
+with `claude --plugin-dir ~/src/deckard` (in a scratch project or in the
+training repo) and `/reload-plugins` after edits. Everything Deckard needs is
+**snapshot-copied** in at the milestone that needs it — runtime, tests, and CI
+never reference training-repo paths. Scrub rule when copying: no WTTJ-branded
+material (theme, fonts, logos) lands in this open-source repo; brand material
+goes only into the private kit dir at M8.
 
-**Testing baseline (all milestones):** zero-dep `node --test` under
-`deckard/test/`; `claude plugin validate ./deckard` must pass whenever the
-manifest or a SKILL.md changes.
+**Testing baseline (all milestones):** Node **≥ 22** (stable `node --test`,
+`fs.globSync`); zero-dep `node --test` under `test/`; `claude plugin
+validate .` must pass whenever the manifest or a SKILL.md changes.
 
 ---
 
@@ -22,15 +29,18 @@ manifest or a SKILL.md changes.
 
 Everything else needs a loadable plugin to iterate inside.
 
-- [ ] `deckard/.claude-plugin/plugin.json` — `name: "deck"`,
+- [ ] `.claude-plugin/plugin.json` — `name: "deck"`,
       `displayName: "Deckard"`, description, version `0.0.1`.
 - [ ] Stub `skills/{init,ideate,plan,media,build}/SKILL.md` — frontmatter only
       (`description`, `disable-model-invocation: true`), body "not implemented".
 - [ ] `scripts/`, `templates/`, `brand-kits/default/`, `test/` directories.
 - [ ] `.gitignore` and a `node --test` smoke test that the manifest parses.
 
-**Done when:** `claude plugin validate ./deckard` passes and a session started
-with `--plugin-dir ./deckard` lists `/deck:init` … `/deck:build`.
+**Done when:** `claude plugin validate .` passes and a session started with
+`--plugin-dir .` lists `/deck:init` … `/deck:build` — verify empirically that
+the `deck` prefix renders as expected. The short `deck` prefix is the hard
+requirement; individual skill names are flexible (`init` → `scaffold`, etc.)
+if a collision or UX surprise appears.
 
 ## M2 — `/deck:init` (scaffold)
 
@@ -39,6 +49,12 @@ skill reuses.
 
 - [ ] `templates/notes.skeleton.md`, `templates/presentation.skeleton.md`
       (the §2 hierarchy), `templates/deckard.skeleton.json`.
+- [ ] Finalize the `deckard.json` schema (starting shape in framework.md §8:
+      flat, every field optional with defaults — `brandKit`, `source`,
+      `captureTool`, `outDir`, `publish`, `marpVersion`; presence alone is
+      the hook marker); fold any deviation back into framework.md.
+- [ ] Shared script entry helper with a `process.version` guard (Node ≥ 22,
+      clear error).
 - [ ] `scripts/init.mjs` — idempotent: create `data/`, the two docs,
       `deckard.json`, `.gitignore` entry for `.build/`; **never overwrite**;
       print created-vs-skipped report.
@@ -65,31 +81,44 @@ The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
       `output/`/`assets/` flagged; malformed metadata blocks reported with
       line numbers.
 - [ ] Unit tests: metadata edge cases, directive scoping, note-vs-directive
-      separation, slides with no media, meta sections ignored.
-- [ ] **Golden fixture:** convert this repo's `session-plan.md` into the §2
-      `presentation.md` format (one-time, agent-assisted, reviewed), copy the
-      result into `deckard/test/fixtures/`, and add a golden-file test:
-      transform(fixture) ≡ committed expected `slides.md`. (Snapshot copy —
-      the deckard repo must not depend on this repo's paths.)
+      separation, slides with no media, meta sections ignored, `#`-prefixed
+      lines inside fenced code not parsed as headings (§2.1, the YOLO-slide
+      case).
+- [ ] **Golden fixture:** `test/fixtures/` holds a real full-size deck in §2
+      format — a `presentation.md`, the assets it references (stubs are fine;
+      lint checks existence), and the expected `slides.md` — with a
+      golden-file test: transform(fixture) ≡ committed expected output. The
+      fixture is the training deck, migrated to the §2 format by the
+      training-repo session (agreed 2026-07-24 over claude-peers — that side
+      has the deck context to eyeball fidelity, and the migration doubles as
+      that repo's own move to the Deckard format; ping peer `fyhlq2ki` if it
+      isn't ready when M3 starts) and snapshot-copied here. After the copy,
+      nothing references the training repo.
+- [ ] Optional second lint fixture: a deck with a deliberately orphaned
+      asset (the training deck's cut "advisor tool" slide left real orphaned
+      media — the §5.5 case) to exercise orphan detection.
 
 **Done when:** the golden test passes and `--lint` on the fixture reports
 clean (or exactly the known, documented exceptions).
 
 ## M4 — Build & publish (`/deck:build`)
 
-- [ ] `scripts/build.mjs` — run the transform, then Marp
-      (`npx @marp-team/marp-cli`) on `.build/slides.md` → `slides.html`,
-      using the configured brand kit's `theme.css`.
-- [ ] `scripts/embed-fonts.mjs` — port of `embed-fonts.sh`: base64
-      `@font-face` between markers in the theme, sourced from the kit's
-      `fonts/`.
-- [ ] `scripts/publish.mjs` — port of `publish.sh`: literal asset-path →
-      data-URI substitution (never a re-parse of rendered output).
+- [ ] `scripts/build.mjs` — run the transform, then Marp at the **pinned
+      version** (`npx @marp-team/marp-cli@4.5.0` — the version that built the
+      training deck; a constant in `build.mjs`, overridable via `marpVersion`
+      in `deckard.json`) on `.build/slides.md` → `slides.html`, using the
+      configured brand kit's `theme.css`.
+- [ ] `scripts/embed-fonts.mjs` — port of the training repo's
+      `embed-fonts.sh`: base64 `@font-face` between markers in the theme,
+      sourced from the kit's `fonts/`.
+- [ ] `scripts/publish.mjs` — port of the training repo's `publish.sh`:
+      literal asset-path → data-URI substitution (never a re-parse of
+      rendered output).
 - [ ] `skills/build/SKILL.md` — runs lint + build + publish, reports
       human-readably (lint findings, output paths, sizes).
 - [ ] Verification on the fixture: built HTML renders the same deck as the
-      existing `slides.html` (spot-check slides incl. presenter notes in
-      Marp's presenter view; parity of content, not bytes).
+      training repo's `slides.html` (spot-check slides incl. presenter notes
+      in Marp's presenter view; parity of content, not bytes).
 
 **Done when:** `/deck:build` reproduces this repo's deck end-to-end from the
 converted fixture.
@@ -102,6 +131,9 @@ Needs M4's build entry point.
       `presentation.md` + active theme against `.build/last-build.hash`;
       rebuild (build only, no publish/lint) on change.
 - [ ] `hooks/hooks.json` — `Stop` event, `async: true`, sensible timeout.
+- [ ] Verify `async: true` on Stop hooks against the installed CLI (docs say
+      supported as of 2026-07-24, incl. `asyncRewake`; confirm empirically
+      per §5.7 — docs have been wrong before).
 - [ ] Manual verification: in a deckard project, an edit to
       `presentation.md` is rebuilt by end of turn; in a non-deckard project
       the hook is an instant no-op; a quiet turn triggers no rebuild.
@@ -111,19 +143,22 @@ with no visible latency at the prompt.
 
 ## M6 — `/deck:media`
 
-Generalization of this repo's `.claude/skills/next-media/`.
+Generalization of the training repo's `.claude/skills/next-media/`.
 
 - [ ] `skills/media/SKILL.md` — state-driven per §3 P3: backlog report first
-      (from `media:` metadata via the transform's parser — expose a
-      `--status` JSON mode rather than re-parsing in prose); then work items
-      until told to stop. Args: none = status + proceed, `status` = report
-      only, slide title = that slide.
+      (five buckets: missing = key absent / pending / handoff / none / done,
+      read via the transform's `--status` JSON mode — never re-parsed in
+      prose); then work items until told to stop. Args: none = status +
+      proceed, `status` = report only, slide title = that slide.
 - [ ] Three-way classification (§2.4) with the "code block before screenshot"
-      check; explicit `media: done | pending | none` updates; manual-handoff
-      emits a precise capture directive into the slide.
+      check; explicit `media: done | pending | handoff | none` updates
+      (`handoff` set explicitly, never inferred from a capture directive);
+      manual-handoff emits a precise capture directive into the slide.
 - [ ] `skills/media/capture-vhs.md` — the §5.4 VHS lore, linked on demand.
-- [ ] `scripts/regenerate-media.mjs` — glob `blueprints/**/*.tape` (fix 5.6),
-      run each; no manual list.
+- [ ] `scripts/regenerate-media.mjs` — glob `blueprints/**/*.tape` (fix 5.6,
+      `fs.globSync`), run each; no manual list.
+- [ ] Adapt the training repo's `blueprints/common.tape` as the default VHS
+      look; decide its home then (`templates/` vs next to `skills/media/`).
 - [ ] Verification: on the fixture, flip one slide to `media: pending` and
       run the loop; confirm it never reopens a `done` slide (§5.2 scenario).
 
@@ -151,9 +186,11 @@ Prompt-craft; §3 already contains the working prompts.
 
 - [ ] `brand-kits/default/` — neutral `theme.css` (+ minimal `kit.md`);
       referenced by the skeleton `deckard.json`.
-- [ ] Extract the **WTTJ kit** from this repo (`themes/`, `style.css`, fonts)
-      into a private directory following the contract; point this repo's
-      config at it; rebuild the fixture with it.
+- [ ] Extract the **WTTJ kit** from the training repo (`themes/`,
+      `style.css`, fonts) into a private directory following the contract —
+      fully self-contained, fonts **copied** in, never referenced across
+      repos; ask the user where the private dir/repo should live; point the
+      training repo's config at it; rebuild the fixture with it.
 - [ ] Kit resolution in the scripts: path from `deckard.json`, fallback to
       the bundled default; clear error when a kit lacks `theme.css`.
 - [ ] Theme verification habit (§8): export representative slide PNGs and
@@ -167,18 +204,18 @@ builds correctly under both.
 (The repo split already happened — deckard was born as its own repo at
 `~/src/deckard`.)
 
-- [ ] This repo switches from `--plugin-dir` to a normal plugin install and
-      keeps only its project files (`presentation.md`, `deckard.json`, media,
-      built outputs).
-- [ ] README (install, quickstart, the four phases), license, marketplace
-      metadata; `utils/transcript.py` ships as the standalone retrospective
-      tool.
+- [ ] The training repo switches from `--plugin-dir` to a normal plugin
+      install and keeps only its project files (`presentation.md`,
+      `deckard.json`, media, built outputs).
+- [ ] README (install, quickstart, the four phases, Node ≥ 22 requirement),
+      license, marketplace metadata; `utils/transcript.py` ships as the
+      standalone retrospective tool.
 - [ ] CI: `node --test` + `claude plugin validate`.
 - [ ] Final dogfood: a genuinely fresh deck built start-to-finish on the
       published plugin.
 
 **Done when:** a colleague can install Deckard from the repo and reach a
-rendered deck without touching this training repo.
+rendered deck without touching the training repo.
 
 ---
 

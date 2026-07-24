@@ -2,9 +2,12 @@
 
 A reusable process, packaged as a **Claude plugin with embedded scripts** named
 **Deckard** (manifest `name: deck`, so commands surface as `/deck:<skill>`),
-for producing a presentation the way this repo's Claude Code training #2 was
+for producing a presentation the way the Claude Code training #2 deck was
 built: from source data to a self-contained Marp deck. Derived from a full read
-of the past sessions in `process/past-sessions/`. Commands are written short
+of the past sessions in the **training repo**'s `process/past-sessions/`. The
+training repo lives at `~/src/017.claude-code-training-2`, on this machine only
+— anything Deckard needs from it is snapshot-copied in, never referenced by
+path. Commands are written short
 throughout (`/ideate`, `/build`); they are namespaced in practice
 (`/deck:ideate`, `/deck:build`).
 
@@ -31,9 +34,10 @@ roughly in order but loop back freely.
 | 4 | **Build & publish** | `presentation.md` + brand kit | self-contained HTML | `/build` (+ automatic Stop hook, §8) |
 
 Phase 0 is **`/init`** — a deterministic, idempotent scaffold: the skill body
-just runs `scripts/init.mjs` via a dynamic-context bang command, which creates
-`data/`, the two skeleton docs, and `deckard.json`, and never overwrites an
-existing file. No model judgment in the scaffold path; other skills nudge the
+just runs `scripts/init.mjs` via a dynamic-context bang command
+(`${CLAUDE_PLUGIN_ROOT}` is substituted in skill bodies, including inside bang
+commands — verified against docs 2026-07-24), which creates `data/`, the two
+skeleton docs, and `deckard.json`, and never overwrites an existing file. No model judgment in the scaffold path; other skills nudge the
 user to run it if the layout is missing.
 
 **The deliberate gate:** `/ideate` produces a *vision*, not slides — slides come
@@ -69,8 +73,9 @@ worry dissolves — and it matches the real project's lineage (`ideas.md` /
 `training-2-draft.md` messy notes → clean `session-plan.md`). It is not the
 drift trap of §5.1, which is about two *live rendered* copies edited at once.
 
-The one-off session-log analysis that produced this framework (`transcript.py` →
-`process/past-sessions/`) is a **retrospective/meta task, not a pipeline phase**
+The one-off session-log analysis that produced this framework (the training
+repo's `transcript.py` → `process/past-sessions/`) is a **retrospective/meta
+task, not a pipeline phase**
 — a fresh presentation project has no prior sessions. It stays a standalone
 utility, out of the plugin's main flow.
 
@@ -80,7 +85,7 @@ utility, out of the plugin's main flow.
 
 **One markdown file is the single source of truth**, produced by `/plan` from
 the notes (§1). Everything downstream is generated from it; nothing downstream is
-hand-edited (see §4). Default name `presentation.md` (this repo's
+hand-edited (see §4). Default name `presentation.md` (the training repo's
 `session-plan.md` is the prior instance of it).
 
 ### 2.1 Heading hierarchy (fixed)
@@ -98,7 +103,10 @@ hand-edited (see §4). Default name `presentation.md` (this repo's
 The fixed `## Slides` heading is the parser's anchor: everything before it is
 metadata/narrative for humans and agents; every H3 under it is a slide to emit.
 This keeps the meta sections (audience, narrative arc, followups, parking lot)
-in the same file without the transform mistaking them for slides.
+in the same file without the transform mistaking them for slides. Heading
+detection is line-based but must **skip fenced-code interiors** — a
+`#`-prefixed line inside a fence is not a heading (real case: the training
+deck's YOLO slide carries a code block with `#` comment lines).
 
 ### 2.2 Per-slide body
 
@@ -125,7 +133,8 @@ so we don't spend H4/H5 on them):
 ### 2.3 Per-slide metadata — HTML comment, `key: value` lines
 
 Each slide needs machine-readable metadata the transform reads — at minimum a
-media-resolution state (§5.2), and optionally layout hints (`bg-right`, `lead`),
+media-resolution state (§5.2: `media: done | pending | handoff | none`; key
+absent = not yet classified), and optionally layout hints (`bg-right`, `lead`),
 a media-type hint, etc. Requirements: **markdown-native, human-editable,
 agent-editable, and parseable by a simple script** (no full CommonMark parser).
 
@@ -251,9 +260,11 @@ and report the diff to the user.
 ### Phase 3 — Produce media (`/media`)
 State-driven, not session-bounded. The old "one unit of work per fresh session"
 rule was a token-economy workaround; the durable fix was always the explicit
-`media:` state (§5.2). The skill: **report the backlog first** (missing /
-pending / handed-off — the bookkeeping is the core value), then work through
-items until told to stop. Arguments scope it: no args = status + proceed,
+`media:` state (§5.2). The skill: **report the backlog first** — five buckets
+from the `media:` state (missing = key absent / pending / handoff / none /
+done; the first two are actionable by the agent, `handoff` waits on the human;
+the bookkeeping is the core value), states read via the transform's `--status`
+JSON mode (§5.5) — then work through items until told to stop. Arguments scope it: no args = status + proceed,
 `status` = report only, a slide title = just that one. A deck of cheap diagrams
 resolves in a single session; for heavy capture work the user resets the
 session when they see fit. Classification per §2.4, improvements in §5.2–§5.4.
@@ -266,7 +277,13 @@ title)** rather than shrink text (Marp doesn't auto-shrink). Keep **build vs.
 publish** distinct: build = fast local render; publish = self-contained
 shareable HTML. Never re-run a document converter (pandoc, single-file-cli) over
 already-rendered Marp output — it re-parses and mangles Marp's player; use
-literal asset-path → data-URI substitution.
+literal asset-path → data-URI substitution. Marp CLI runs at a **pinned
+version**: `npx @marp-team/marp-cli@4.5.0`, a constant in `build.mjs`,
+overridable via `marpVersion` in `deckard.json` — floating on latest
+contradicts reproducibility and §5.7's empiricism. 4.5.0 is the version that
+verifiably rendered the training deck (the npx cache and the
+`marp-cli@4.5.0` license banner embedded in its `slides.html` agree;
+confirmed 2026-07-24).
 
 ---
 
@@ -314,8 +331,11 @@ Covered by §2 + §4. The rule: humans and agents edit only `presentation.md`;
 The worst dead end in the corpus: a fresh session re-flagged an already-resolved
 slide (it had a code block, not an image tag) and started recording a redundant
 tape typing that same content — the user aborted it. Resolution state must be an
-explicit per-slide metadata field (§2.3, e.g. `media: done | pending | none`),
-robust enough that even a cheap model won't reopen a closed slide (§7).
+explicit per-slide metadata field (§2.3: `media: done | pending | handoff |
+none`, key absent = unclassified), robust enough that even a cheap model won't
+reopen a closed slide (§7). `handoff` is likewise explicit — never *inferred*
+from the presence of a capture directive in the Media section — for the same
+literal-executor reason.
 
 ### 5.3 Three-way media classification
 VHS-reproducible / inline-text-or-code / manual-handoff (§2.4). For a technical
@@ -342,7 +362,9 @@ Documented in a `reference/` doc, not enforced. These cost multiple re-records:
 
 ### 5.5 Lint the deck
 Implemented as the transform's `--lint` mode (same parser, no second
-implementation): confirm every asset path referenced in the source resolves on
+implementation; the same parser also backs a `--status` mode emitting
+per-slide `{title, mediaState, assets}` JSON for `/media` — one parser, two
+consumers): confirm every asset path referenced in the source resolves on
 disk, and flag
 orphaned media referenced nowhere (cutting a slide once left dead gifs + a stale
 tape registration).
@@ -406,7 +428,9 @@ prefix, and `displayName` carries the branding — so `name: deck`,
 `displayName: "Deckard"` gives the short `/deck:<skill>` commands.
 
 **Language: zero-dependency Node `.mjs`, no build step** (`// @ts-check` +
-JSDoc for editor-level types). Rationale: the §2 format is deliberately
+JSDoc for editor-level types). Baseline **Node ≥ 22** — stable `node --test`
+and `fs.globSync` with zero deps; the scripts' shared entry helper guards
+`process.version` with a clear error. Rationale: the §2 format is deliberately
 line-parseable, so no markdown-parser dependency exists to install; Marp CLI
 already makes Node a hard requirement of the pipeline; the Stop hook runs
 every turn and needs instant startup (rules out the Elixir VM's boot time and
@@ -427,7 +451,7 @@ deckard/                       # own repo: ~/src/deckard
   hooks/hooks.json             # Stop event, async: true → scripts/autobuild.mjs
   scripts/                     # all zero-dep Node, no install step
     init.mjs                   # idempotent: data/, skeleton docs, deckard.json
-    plan-to-slides.mjs         # presentation.md → .build/slides.md (§4); --lint = fix 5.5
+    plan-to-slides.mjs         # presentation.md → .build/slides.md (§4); --lint = fix 5.5; --status = media-state JSON for /media
     autobuild.mjs              # exits fast unless deckard.json present + source changed
     build.mjs  publish.mjs  embed-fonts.mjs
     regenerate-media.mjs       # auto-discovering capture runner (fix 5.6)
@@ -454,6 +478,21 @@ source filename if overridden from `presentation.md`, the preferred capture
 tool, and output paths. It doubles as the **marker file**: plugin hooks fire
 in every project where the plugin is enabled, so `autobuild.mjs` exits
 immediately when the project has no `deckard.json`.
+
+Starting shape (schema finalized at M2) — flat until something forces nesting,
+every field optional with a default, since the file's mere presence is already
+the marker:
+
+```jsonc
+{
+  "brandKit": "path/to/kit",     // default: the plugin's brand-kits/default
+  "source": "presentation.md",   // default
+  "captureTool": "vhs",          // default; informational, for /media
+  "outDir": ".build",            // default
+  "publish": "slides.html",      // default output name
+  "marpVersion": "4.5.0"         // overrides the pinned default (§3 Phase 4)
+}
+```
 
 ### Autobuild hook
 A `Stop` hook (fires once per turn, when the agent hands the prompt back — not
@@ -486,7 +525,10 @@ compiled output.
 
 Deckard bundles a neutral `brand-kits/default/`; the WTTJ kit lives in a
 **private** directory/repo pointed at from config — which is what lets the
-tool itself be open-sourced.
+tool itself be open-sourced. A kit directory is **fully self-contained**:
+fonts are *copied* into it, never referenced across repos (same rule and
+reason as the test fixture). No WTTJ-branded material — theme, fonts, logos —
+may land in the open-source repo.
 
 **Theme verification habit to encode:** never declare a theme done from source
 inspection — export representative slide types (cover/lead, bg-image, bullet,
@@ -533,6 +575,22 @@ Resolved 2026-07-24:
   (§8 rationale).
 - **Lint folded into the transform** (`--lint` mode) ✔ (§5.5).
 
+Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
+- **`media:` enum gains `handoff`** ✔ — `done | pending | handoff | none`,
+  key absent = unclassified; explicit, never inferred (§2.3, §5.2, §7).
+- **Transform `--status` mode** ✔ — per-slide media-state JSON for `/media`;
+  one parser, two consumers (§5.5).
+- **`deckard.json` starting shape** ✔ — flat, all fields optional with
+  defaults (§8); schema finalized at M2.
+- **Marp CLI pinned** ✔ — constant in `build.mjs`, `marpVersion` override in
+  `deckard.json`; concrete version chosen at M4 (§3 Phase 4).
+- **Node ≥ 22 baseline** ✔ — `node --test` + `fs.globSync`, guarded entry
+  helper (§8).
+- **Training repo recorded** ✔ — `~/src/017.claude-code-training-2`, this
+  machine only; snapshot-copy what's needed, scrub WTTJ-branded material.
+- **Brand kits fully self-contained** ✔ — fonts copied in, never referenced
+  across repos (§8).
+
 Still open: nothing blocking. Next step: scaffold §8 and write
-`plan-to-slides.mjs`, validated against this repo's deck (convert
-`session-plan.md` into the §2 format as the golden fixture).
+`plan-to-slides.mjs`, validated against the golden fixture (the training
+deck, migrated to the §2 format — see the build plan's M3).
