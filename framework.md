@@ -2,14 +2,14 @@
 
 A reusable process, packaged as a **Claude plugin with embedded scripts** named
 **Deckard** (manifest `name: deck`, so commands surface as `/deck:<skill>`),
-for producing a presentation the way the Claude Code training #2 deck was
-built: from source data to a self-contained Marp deck. Derived from a full read
-of the past sessions in the **training repo**'s `process/past-sessions/`. The
-training repo lives at `~/src/017.claude-code-training-2`, on this machine only
-— anything Deckard needs from it is snapshot-copied in, never referenced by
-path. Commands are written short
-throughout (`/ideate`, `/build`); they are namespaced in practice
-(`/deck:ideate`, `/deck:build`).
+for producing a presentation from source data to a self-contained Marp deck.
+The process is distilled from a **prior project** — a real training deck built
+end-to-end with Claude Code, whose work sessions were analyzed retrospectively.
+The user keeps that project's materials privately (original scripts, media
+sources, brand styles) and **supplies them on request**; anything supplied is
+snapshot-copied into this repo, never referenced externally. Commands are
+written short throughout (`/ideate`, `/build`); they are namespaced in
+practice (`/deck:ideate`, `/deck:build`).
 
 This document is the design, not the implementation. It defines the **phases**,
 the **source-document format**, the cross-cutting **conventions**, the **fixes**
@@ -69,15 +69,14 @@ brainstorm, `presentation.md` is the clean decided artifact. They hold different
 narrative have exactly one authoritative home (`presentation.md`), while
 `notes.md` holds the *reasoning and raw material* behind them, not a maintained
 copy of the final statements. This is why the earlier "vision doc" duplication
-worry dissolves — and it matches the real project's lineage (`ideas.md` /
-`training-2-draft.md` messy notes → clean `session-plan.md`). It is not the
+worry dissolves — and it matches how the prior project actually evolved
+(several messy notes docs feeding one clean plan doc). It is not the
 drift trap of §5.1, which is about two *live rendered* copies edited at once.
 
-The one-off session-log analysis that produced this framework (the training
-repo's `transcript.py` → `process/past-sessions/`) is a **retrospective/meta
-task, not a pipeline phase**
-— a fresh presentation project has no prior sessions. It stays a standalone
-utility, out of the plugin's main flow.
+The session-log analysis that produced this framework (`utils/transcript.py`:
+session `.jsonl` files → readable markdown) is a **retrospective/meta task,
+not a pipeline phase** — a fresh presentation project has no prior sessions.
+It ships as a standalone utility, out of the plugin's main flow.
 
 ---
 
@@ -85,8 +84,7 @@ utility, out of the plugin's main flow.
 
 **One markdown file is the single source of truth**, produced by `/plan` from
 the notes (§1). Everything downstream is generated from it; nothing downstream is
-hand-edited (see §4). Default name `presentation.md` (the training repo's
-`session-plan.md` is the prior instance of it).
+hand-edited (see §4). Default name `presentation.md`.
 
 ### 2.1 Heading hierarchy (fixed)
 
@@ -106,8 +104,8 @@ metadata/narrative for humans and agents; every H3 under it is a slide to emit.
 This keeps the meta sections (audience, narrative arc, followups, parking lot)
 in the same file without the transform mistaking them for slides. Heading
 detection is line-based but must **skip fenced-code interiors** — a
-`#`-prefixed line inside a fence is not a heading (real case: the training
-deck's YOLO slide carries a code block with `#` comment lines).
+`#`-prefixed line inside a fence is not a heading (typical case: a shell
+snippet whose comment lines start with `#`).
 
 ### 2.2 Per-slide body
 
@@ -267,8 +265,9 @@ Consumes `notes.md` + `data/`, produces `presentation.md`. Two steps, in order �
 the first is what keeps the talk coherent:
 
 1. **Crystallize the narrative.** Ordering is **inherited from the user, then
-   rationalized** — not invented. Name the arc (in #2: setup/payoff — show a tool
-   early as "a magic trick", reveal its guts late; one throughline). Place
+   rationalized** — not invented. Name the arc (one prior deck's arc, as an
+   example: setup/payoff — show a tool early as "a magic trick", reveal its
+   guts late; one throughline). Place
    late-arriving content by matching the **strongest existing thread**, not by
    appending. Distill the settled decisions from `notes.md` into
    `presentation.md`'s meta H2 sections; title/intro slides stay lean.
@@ -305,10 +304,8 @@ already-rendered Marp output — it re-parses and mangles Marp's player; use
 literal asset-path → data-URI substitution. Marp CLI runs at a **pinned
 version**: `npx @marp-team/marp-cli@4.5.0`, a constant in `build.mjs`,
 overridable via `marpVersion` in `deckard.json` — floating on latest
-contradicts reproducibility and §5.7's empiricism. 4.5.0 is the version that
-verifiably rendered the training deck (the npx cache and the
-`marp-cli@4.5.0` license banner embedded in its `slides.html` agree;
-confirmed 2026-07-24).
+contradicts reproducibility and §5.7's empiricism. 4.5.0 is verified
+end-to-end: it rendered the prior project's full deck (confirmed 2026-07-24).
 
 ---
 
@@ -349,14 +346,14 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
 
 **Direct Marp authoring — evaluated, rejected (2026-07-24).** The alternative
 (meta sections in an `info.md`, the agent authoring `slides.md` directly as
-the Marp file, no translation) was seriously weighed against the session
-corpus. It loses on three corpus-recorded grounds — none of which is drift;
-collapsing to one artifact would fix drift just as well as generating from
-one source:
+the Marp file, no translation) was seriously weighed against the prior
+project's recorded experience. It loses on three observed grounds — none of
+which is drift; collapsing to one artifact would fix drift just as well as
+generating from one source:
 
-1. **The speaker-notes dilemma.** Notes-as-HTML-comments were offered in the
-   past sessions and rejected as source clutter; the separate
-   `speaker-notes.md` then caused the drift regret. Both positions available
+1. **The speaker-notes dilemma.** In the prior project, notes-as-HTML-comments
+   were offered and rejected as source clutter; a separate
+   speaker-notes file then caused the drift regret. Both positions available
    in a hand-authored Marp file are bad; the authored-subsection →
    emitted-comment translation is the only third option.
 2. **Pre-media intent.** Before media exists, a slide carries prose describing
@@ -395,7 +392,7 @@ banner as a **YAML comment inside the frontmatter** — an HTML comment there
 would be collected as slide 1's presenter note.
 
 ### 5.2 Media "done" is explicit metadata, not "has an image tag"
-The worst dead end in the corpus: a fresh session re-flagged an already-resolved
+The worst dead end in the prior project: a fresh session re-flagged an already-resolved
 slide (it had a code block, not an image tag) and started recording a redundant
 tape typing that same content — the user aborted it. Resolution state must be an
 explicit per-slide metadata field (§2.3: `media: done | pending | handoff |
@@ -441,9 +438,9 @@ handoff` with *no* `deck: Media` section is a missing directive; and the
 heading).
 
 ### 5.6 Auto-discover captures
-The old `generate.sh` used a manually-maintained `TAPES` array — "a tape left out
-is never regenerated." The regeneration script should glob the blueprints dir
-instead.
+The prior project's regeneration script used a manually-maintained tape list —
+"a tape left out is never regenerated." The regeneration script should glob
+the blueprints dir instead.
 
 ### 5.7 Empirical over docs; never fabricate
 Docs were wrong repeatedly (statusline behavior, `settings.local.json`
@@ -481,9 +478,10 @@ reasoning**, not just the conclusion.
 ## 7. Model tiering
 
 Judgment-heavy phases (ideate, narrative, media classification, "is this already
-resolved?") reward a strong model. The Haiku session showed a cheap model
-executes a flawed instruction **literally** — it reopened a closed slide and
-started redundant work a stronger model had avoided. So: mechanical sub-steps
+resolved?") reward a strong model. A prior-project session run on a small
+model showed that it executes a flawed instruction **literally** — it
+reopened a closed slide and started redundant work a stronger model had
+avoided. So: mechanical sub-steps
 (running a capture, embedding a tag, base64 inlining) are safe on a cheap model,
 but the guardrails — especially the explicit "done" state (§5.2) — must be robust
 enough to survive a literal-minded executor rather than relying on model
@@ -594,12 +592,13 @@ fallback stack), logo (inline SVG + clear-space + placement), component
 recipes (card/tag/etc. as CSS), and a DO/DON'T checklist lintable against the
 compiled output.
 
-Deckard bundles a neutral `brand-kits/default/`; the WTTJ kit lives in a
-**private** directory/repo pointed at from config — which is what lets the
-tool itself be open-sourced. A kit directory is **fully self-contained**:
-fonts are *copied* into it, never referenced across repos (same rule and
-reason as the test fixture). No WTTJ-branded material — theme, fonts, logos —
-may land in the open-source repo.
+Deckard bundles a neutral `brand-kits/default/`; the WTTJ kit (the user's
+company brand — Welcome to the Jungle; the user supplies its theme CSS and
+fonts) lives in a **private** directory/repo pointed at from config — which
+is what lets the tool itself be open-sourced. A kit directory is **fully
+self-contained**: fonts are *copied* into it, never referenced across repos
+(same rule and reason as the test fixture). No WTTJ-branded material — theme,
+fonts, logos — may land in the open-source repo.
 
 **Theme verification habit to encode:** never declare a theme done from source
 inspection — export representative slide types (cover/lead, bg-image, bullet,
@@ -658,12 +657,13 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   `deckard.json`; concrete version chosen at M4 (§3 Phase 4).
 - **Node ≥ 22 baseline** ✔ — `node --test` + `fs.globSync`, guarded entry
   helper (§8).
-- **Training repo recorded** ✔ — `~/src/017.claude-code-training-2`, this
-  machine only; snapshot-copy what's needed, scrub WTTJ-branded material.
+- **Prior-project materials** ✔ — the user supplies originals on request
+  (build/publish/font-embed scripts, a media skill, VHS tapes, WTTJ styles);
+  anything supplied is snapshot-copied in and scrubbed of WTTJ branding.
 - **Brand kits fully self-contained** ✔ — fonts copied in, never referenced
   across repos (§8).
 - **Direct Marp authoring rejected** ✔ — the single-source design was
-  challenged and re-argued against the session corpus (over claude-peers);
+  challenged and re-argued against the prior project's recorded experience;
   `presentation.md` + transform stands, on the notes dilemma / pre-media
   intent / state-leakage grounds (§4), explicitly *not* on drift. Added the
   `marp:` passthrough key (§2.3) and the hand-edit robustness principle
@@ -673,12 +673,12 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   label-free (everything before the first `#### deck:`), produced assets live
   in the body, and content headings H4–H6 are freed for real use (promoted
   two levels with the title, §2.2).
-- **Golden fixture is purpose-built, not migrated** ✔ — a hand-authored
-  kitchen-sink deck in `test/fixtures/`, deliberately covering the format's
-  edge-case matrix plus one slide per brand-kit slide class (it doubles as
-  the theme-preview deck, §8). The training-deck migration and the peer
-  coordination around it are cancelled; the training repo is a passive
-  resource mine (script ports, WTTJ styles) the user draws from directly.
+- **Golden fixture is purpose-built** ✔ — a hand-authored kitchen-sink deck
+  in `test/fixtures/`, deliberately covering the format's edge-case matrix
+  plus one slide per brand-kit slide class (it doubles as the theme-preview
+  deck, §8). Migrating the prior project's real deck was considered and
+  dropped — a real deck can't cover the edge-case matrix a test fixture
+  should.
 
 Still open: nothing blocking. Next step: scaffold §8 and write
 `plan-to-slides.mjs`, validated against the purpose-built kitchen-sink

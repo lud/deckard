@@ -6,19 +6,15 @@ verified**, so any session can pick up at the first unchecked box. Update the
 checkboxes as work lands.
 
 **Where the code lives:** its own repo at `~/src/deckard` — this repo, which
-also carries these two docs (done 2026-07-25 — no extraction milestone
-needed). The old **training repo** (`~/src/017.claude-code-training-2`, this
-machine only) is a passive resource mine, nothing more: originals worth
-consulting when porting (`embed-fonts.sh`, `publish.sh`, `generate.sh`,
-`.claude/skills/next-media/`, `blueprints/`, `process/transcript.py`) and the
-WTTJ styles the user retrieves at M8 (`themes/`, `style.css`, fonts). No
-coordination with it, and no artifact from it, is on the critical path.
-Iterate by starting test sessions with `claude --plugin-dir ~/src/deckard` in
-a scratch project, with `/reload-plugins` after edits. Anything taken from
-the training repo is **snapshot-copied** in — runtime, tests, and CI never
-reference its paths. Scrub rule when copying: no WTTJ-branded material
-(theme, fonts, logos) lands in this open-source repo; brand material goes
-only into the private kit dir at M8.
+also carries these two docs. Some milestones adapt material from a prior
+project the user keeps privately: original build/publish/font-embed shell
+scripts (M4), a prior media skill and VHS tapes (M6), the WTTJ brand styles
+(M8). **Ask the user** for an original when a milestone needs one; anything
+supplied is snapshot-copied in — runtime, tests, and CI reference only this
+repo. Scrub rule: no WTTJ-branded material (theme, fonts, logos) lands in
+this open-source repo; brand material goes only into the private kit dir at
+M8. Iterate by starting test sessions with `claude --plugin-dir ~/src/deckard`
+in a scratch project, with `/reload-plugins` after edits.
 
 **Testing baseline (all milestones):** Node **≥ 22** (stable `node --test`,
 `fs.globSync`); zero-dep `node --test` under `test/`; `claude plugin
@@ -99,7 +95,7 @@ The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
       separation, slides with no media, meta sections ignored, heading
       promotion (H4–H6 → H2–H4; plain H4 is content, `deck:` H4 is a
       section, case-insensitive), `#`-prefixed lines inside fenced code not
-      parsed as headings (§2.1, the YOLO-slide case).
+      parsed as headings (§2.1).
 - [ ] **Golden fixture — purpose-built in this repo:** `test/fixtures/`
       holds a hand-authored **kitchen-sink deck** in §2 format — a
       `presentation.md`, the assets it references (stubs are fine; lint
@@ -122,16 +118,16 @@ and each lint fixture produces exactly its expected finding.
 ## M4 — Build & publish (`/deck:build`)
 
 - [ ] `scripts/build.mjs` — run the transform, then Marp at the **pinned
-      version** (`npx @marp-team/marp-cli@4.5.0` — the version that built the
-      training deck; a constant in `build.mjs`, overridable via `marpVersion`
+      version** (`npx @marp-team/marp-cli@4.5.0` — verified end-to-end, §3
+      Phase 4; a constant in `build.mjs`, overridable via `marpVersion`
       in `deckard.json`) on `.build/slides.md` → `slides.html`, using the
       configured brand kit's `theme.css`.
-- [ ] `scripts/embed-fonts.mjs` — port of the training repo's
-      `embed-fonts.sh`: base64 `@font-face` between markers in the theme,
-      sourced from the kit's `fonts/`.
-- [ ] `scripts/publish.mjs` — port of the training repo's `publish.sh`:
-      literal asset-path → data-URI substitution (never a re-parse of
-      rendered output).
+- [ ] `scripts/embed-fonts.mjs` — base64 `@font-face` between markers in the
+      theme, sourced from the kit's `fonts/`. The user can supply a prior
+      shell-script original to port — ask for it.
+- [ ] `scripts/publish.mjs` — literal asset-path → data-URI substitution
+      (never a re-parse of rendered output). The user can supply a prior
+      shell-script original to port — ask for it.
 - [ ] `skills/build/SKILL.md` — runs lint + build + publish, reports
       human-readably (lint findings, output paths, sizes).
 - [ ] Verification: build the kitchen-sink fixture and review per the §8
@@ -161,7 +157,8 @@ with no visible latency at the prompt.
 
 ## M6 — `/deck:media`
 
-Generalization of the training repo's `.claude/skills/next-media/`.
+Generalizes a media skill from the prior project — the user can supply the
+original as a reference; ask for it.
 
 - [ ] `skills/media/SKILL.md` — state-driven per §3 P3: backlog report first
       (five buckets: missing = key absent / pending / handoff / none / done,
@@ -176,8 +173,9 @@ Generalization of the training repo's `.claude/skills/next-media/`.
 - [ ] `skills/media/capture-vhs.md` — the §5.4 VHS lore, linked on demand.
 - [ ] `scripts/regenerate-media.mjs` — glob `blueprints/**/*.tape` (fix 5.6,
       `fs.globSync`), run each; no manual list.
-- [ ] Adapt the training repo's `blueprints/common.tape` as the default VHS
-      look; decide its home then (`templates/` vs next to `skills/media/`).
+- [ ] `common.tape` — the default VHS look; the user can supply a prior
+      tape as a starting point (ask). Decide its home then (`templates/` vs
+      next to `skills/media/`).
 - [ ] Verification: on the fixture, flip one slide to `media: pending` and
       run the loop; confirm it never reopens a `done` slide (§5.2 scenario).
 
@@ -208,11 +206,11 @@ Prompt-craft; §3 already contains the working prompts.
 
 - [ ] `brand-kits/default/` — neutral `theme.css` (+ minimal `kit.md`);
       referenced by the skeleton `deckard.json`.
-- [ ] Extract the **WTTJ kit** (the user retrieves `themes/`, `style.css`,
-      and fonts from the training repo) into a private directory following
-      the contract — fully self-contained, fonts **copied** in, never
-      referenced across repos; ask the user where the private dir/repo
-      should live; rebuild the kitchen-sink fixture with it.
+- [ ] Build the **WTTJ kit** (the user supplies the WTTJ theme CSS and
+      fonts — ask for them) as a private directory following the contract —
+      fully self-contained, fonts **copied** in, never referenced across
+      repos; ask the user where the private dir/repo should live; rebuild
+      the kitchen-sink fixture with it.
 - [ ] Kit resolution in the scripts: path from `deckard.json`, fallback to
       the bundled default; clear error when a kit lacks `theme.css`.
 - [ ] Theme verification habit (§8): export representative slide PNGs (the
@@ -224,9 +222,6 @@ builds correctly under both.
 
 ## M9 — Open-source prep
 
-(The repo split already happened — deckard was born as its own repo at
-`~/src/deckard`.)
-
 - [ ] README (install, quickstart, the four phases, Node ≥ 22 requirement),
       license, marketplace metadata; `utils/transcript.py` ships as the
       standalone retrospective tool.
@@ -235,7 +230,7 @@ builds correctly under both.
       published plugin.
 
 **Done when:** a colleague can install Deckard from the repo and reach a
-rendered deck without touching the training repo.
+rendered deck with nothing but this repo and its README.
 
 ---
 
