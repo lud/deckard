@@ -75,24 +75,39 @@ skill discovery, and subdirectory loading are confirmed empirically.
 Small, independent, and exercises the skill→script wiring pattern every other
 skill reuses.
 
-- [ ] `templates/notes.skeleton.md`, `templates/presentation.skeleton.md`
-      (the §2 hierarchy), `templates/deckard.skeleton.json`.
-- [ ] Finalize the `deckard.json` schema (starting shape in framework.md §8:
-      flat, every field optional with defaults — `brandKit`, `source`,
-      `captureTool`, `outDir`, `publish`, `marpVersion`; presence alone is
-      the hook marker); fold any deviation back into framework.md.
-- [ ] Shared script entry helper with a `process.version` guard (Node ≥ 22,
-      clear error).
-- [ ] `scripts/init.mjs` — idempotent: create `data/`, the two docs,
+- [x] `templates/notes.skeleton.md`, `templates/presentation.skeleton.md`
+      (the §2 hierarchy), `templates/deckard.skeleton.json`. The skeleton
+      slide is authored to lint clean under M3's rules — `media: pending`
+      paired with a `deck: Media` section, per the §5.5 coherence check.
+- [x] Finalize the `deckard.json` schema (flat, every field optional with
+      defaults — `brandKit`, `source`, `captureTool`, `outDir`, `publish`,
+      `marpVersion`; presence alone is the hook marker). Folded into
+      framework.md §8: `/init` writes only `brandKit` + `source` so projects
+      inherit later default changes, and `brandKit` resolves by shape (bare
+      name = bundled kit, path-like = relative to the project root).
+- [x] Shared script entry helper with a `process.version` guard (Node ≥ 22,
+      clear error) — `scripts/lib/entry.mjs`, which also carries
+      `isEntryPoint()` so scripts export their functions to tests and still
+      run as a CLI.
+- [x] `scripts/init.mjs` — idempotent: create `data/`, the two docs,
       `deckard.json`, `.gitignore` entry for `.build/`; **never overwrite**;
-      print created-vs-skipped report.
-- [ ] `skills/init/SKILL.md` — a dynamic-context bang command running
+      print created-vs-skipped report. "Never overwrite" is the `wx` open
+      flag, not a preceding existence check.
+- [x] `skills/init/SKILL.md` — a dynamic-context bang command running
       `init.mjs`; the model only relays the report.
-- [ ] Tests: run twice against a temp dir — second run is a full no-op; a
+- [x] Tests: run twice against a temp dir — second run is a full no-op; a
       pre-existing file with content survives byte-identical.
 
 **Done when:** `/deck:init` in an empty scratch project produces the layout,
 and re-running it changes nothing.
+
+**Landed 2026-07-26.** `just check` green (10 tests). Live in an empty scratch
+project: `/deck:init` scaffolded the layout, and a second live run reported
+five skips with every file hash unchanged. Two findings from the wiring, both
+in framework.md §8: `${CLAUDE_PLUGIN_ROOT}` expands in `allowed-tools` as well
+as in the body, so the grant can name the exact command; and a bang command
+runs during context assembly regardless of that grant — a control run with a
+deliberately non-matching `allowed-tools` still scaffolded.
 
 ## M3 — `plan-to-slides.mjs` (the transform + `--lint`)
 

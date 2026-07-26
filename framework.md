@@ -558,7 +558,44 @@ deckard/                       # own repo: ~/src/deckard — the dev root
 
 The phase skills carry `disable-model-invocation: true` (the phases are
 deliberate user-triggered gates), and skills pre-authorize their tooling with
-`allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/*)` so builds don't prompt.
+`allowed-tools` so builds don't prompt — `${CLAUDE_PLUGIN_ROOT}` expands there
+as it does in the body, so the grant names the exact command
+(`Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")`) rather than all of
+`node`. A **bang command runs while the skill's context is assembled**, ahead
+of the model's first move: measured 2026-07-26, `/deck:init` scaffolded a
+project even under a grant deliberately set to match nothing. So the grant
+earns its place for the scripts a *model* runs (`/deck:build`), and for the
+policy fallback below.
+
+### Bang commands — the syntax that fires
+Documented at code.claude.com/docs/en/skills § "Inject dynamic context"
+(`slash-commands` redirects there; custom commands merged into skills).
+The `` !`<command>` `` form is **preprocessing**: each command runs before the
+model sees anything, its stdout replaces the placeholder, and the result is
+scanned once — inserted output never expands further. Multi-line commands go
+in a fence opened with ` ```! `.
+
+Measured against CLI 2.1.220, since the rest of the matrix is undocumented:
+the scan is **plain text, not markdown-aware**. `` !`cmd` `` fires at a line
+start, after any whitespace, inside a list item, indented four spaces, and
+*inside a fenced code block* — plain or `bash`-tagged. Backticks are required
+(`!cmd` alone does nothing), and the one reliable inline escape is the
+documented rule: a non-whitespace character immediately before the `!`, as in
+`` KEY=!`cmd` ``. So a **SKILL.md body cannot carry a fenced example of this
+syntax** — it would run it. Examples belong in a linked reference doc, which
+is loaded by the Read tool at runtime and is never preprocessed (verified).
+
+Consequences the skills are written around:
+- **Deterministic phases** — `/init`'s scaffold cannot be skipped, deferred, or
+  reasoned away by the model, which is the §7 guardrail in its strongest form.
+- **Effects land before the model speaks**, so a bang command must be safe to
+  run unconditionally: idempotent, never destructive.
+- **Its stdout costs context**, so scripts print terse reports.
+- **Policy fallback** — `disableSkillShellExecution` (settable for plugin
+  skills) replaces each command with
+  `[shell command execution disabled by policy]`. Skills that rely on a bang
+  command name that placeholder and tell the model to run the script with
+  Bash instead, which is where `allowed-tools` does real work.
 Local development: `claude --plugin-dir ~/src/deckard/plugin` (from whichever
 project is being used to test — the flag takes the *shipped subtree*, verified
 to load from a subdirectory) + `/reload-plugins`; `claude plugin validate
@@ -571,9 +608,8 @@ tool, and output paths. It doubles as the **marker file**: plugin hooks fire
 in every project where the plugin is enabled, so `autobuild.mjs` exits
 immediately when the project has no `deckard.json`.
 
-Starting shape (schema finalized at M2) — flat until something forces nesting,
-every field optional with a default, since the file's mere presence is already
-the marker:
+Schema (finalized at M2) — flat until something forces nesting, every field
+optional with a default, since the file's mere presence is already the marker:
 
 ```jsonc
 {
@@ -585,6 +621,15 @@ the marker:
   "marpVersion": "4.5.0"         // overrides the pinned default (§3 Phase 4)
 }
 ```
+
+`/init` writes the two keys a project actually sets — `brandKit` and `source` —
+and leaves the rest to their defaults, so a project inherits later default
+changes instead of freezing today's values in every scaffold.
+
+`brandKit` resolves by shape: a bare name (`"default"`) selects a kit bundled
+with the plugin; anything containing a path separator or starting with `.`
+resolves as a path relative to the project root. That keeps the common case
+short and a private kit (§8, WTTJ) explicit.
 
 ### Autobuild hook
 A `Stop` hook (fires once per turn, when the agent hands the prompt back — not
