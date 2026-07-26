@@ -53,7 +53,7 @@ const IMAGE = /!\[[^\]]*\]\(\s*([^)\s]+)/g
  * @typedef {{ code: string, line: number, message: string }} Finding
  * @typedef {{
  *   title: string, line: number, metadata: MetaEntry[], body: Line[],
- *   sections: Section[]
+ *   sections: Section[], stranded: Line[]
  * }} Slide
  */
 
@@ -76,6 +76,13 @@ export function parseDeck(source) {
   let slide = null
   /** @type {Section | null} */
   let section = null
+  /**
+   * Set while inside an unreachable plain-H4 block. Its lines are held apart
+   * from the section that encloses them: the finding is the signal, and the
+   * content stays out of the deck rather than leaking into a presenter note.
+   * @type {Line[] | null}
+   */
+  let stranded = null
   let awaitingMetadata = false
 
   /**
@@ -87,7 +94,8 @@ export function parseDeck(source) {
 
   /** @param {Line} entry */
   const collect = (entry) => {
-    if (section) section.lines.push(entry)
+    if (stranded) stranded.push(entry)
+    else if (section) section.lines.push(entry)
     else if (slide) slide.body.push(entry)
     // Anything outside a slide is meta prose for humans and agents (§2.1).
   }
@@ -164,9 +172,10 @@ export function parseDeck(source) {
         collect({ text, line, fenced: false })
         continue
       }
-      slide = { title: label, line, metadata: [], body: [], sections: [] }
+      slide = { title: label, line, metadata: [], body: [], sections: [], stranded: [] }
       slides.push(slide)
       section = null
+      stranded = null
       awaitingMetadata = true
       continue
     }
@@ -188,6 +197,7 @@ export function parseDeck(source) {
           )
         }
         section = { name, canonical, line, lines: [] }
+        stranded = null
         slide.sections.push(section)
         continue
       }
@@ -195,8 +205,9 @@ export function parseDeck(source) {
         flag(
           'unreachable-heading',
           line,
-          `content heading "${label}" sits inside a "deck:" section, so it never reaches the slide — move it above the sections`,
+          `content heading "${label}" sits inside a "deck:" section, so it and the content under it are left out of the deck — move them above the sections`,
         )
+        stranded = slide.stranded
       }
       collect({ text, line, fenced: false })
       continue

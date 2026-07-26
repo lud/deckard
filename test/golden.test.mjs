@@ -43,6 +43,7 @@ test('the kitchen sink lints clean', () => {
 })
 
 test('--status buckets every slide by media state', () => {
+  /** @type {{ source: string, slides: { title: string, mediaState: string | null, mediaSection: boolean, assets: string[] }[], buckets: Record<string, string[]> }} */
   const status = JSON.parse(transform(['--status']).stdout)
 
   assert.equal(status.source, 'presentation.md')
@@ -59,6 +60,7 @@ test('--status buckets every slide by media state', () => {
   )
 
   const aside = status.slides.find((slide) => slide.title === 'Screenshot as an aside')
+  assert.ok(aside, 'the aside slide is reported')
   assert.deepEqual(aside.assets, ['assets/screenshot.png'])
   assert.equal(aside.mediaSection, false)
 })

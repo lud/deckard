@@ -1,0 +1,17 @@
+{
+  "//": "Type-checking only. The plugin ships hand-written .mjs; nothing is emitted.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["plugin/scripts/**/*.mjs", "test/**/*.mjs"]
+}

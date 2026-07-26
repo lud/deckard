@@ -77,7 +77,8 @@ test('the shared skill is model-invocable, unlike the phase gates', () => {
 
 test('the shared skill explains what a phase skill would otherwise restate', () => {
   const { body } = readSkill(SHARED_SKILL)
-  for (const [topic, pattern] of [
+  /** @type {[string, RegExp][]} */
+  const topics = [
     ['the four phases', /\/deck:ideate/],
     ['the ## Slides anchor', /## Slides/],
     ['the heading budget', /H4 → H2/],
@@ -86,7 +87,8 @@ test('the shared skill explains what a phase skill would otherwise restate', () 
     ['--status and its buckets', /buckets/],
     ['every media state', /handoff/],
     ['handoff being explicit', /never inferred/],
-  ]) {
+  ]
+  for (const [topic, pattern] of topics) {
     assert.match(body, pattern, `the shared skill covers ${topic}`)
   }
 })

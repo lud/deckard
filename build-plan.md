@@ -19,7 +19,12 @@ in a scratch project, with `/reload-plugins` after edits.
 **Testing baseline (all milestones):** Node **≥ 22** (stable `node --test`,
 `fs.globSync`); `node --test` under `test/`; `claude plugin validate plugin
 --strict` must pass whenever the manifest or a SKILL.md changes. `just check`
-runs install + test + validate.
+runs install + test + typecheck + validate.
+
+`just typecheck` is `tsc --noEmit` over `plugin/scripts/` and `test/` — the
+scripts' `// @ts-check` JSDoc is a checked contract, not editor decoration.
+Dev-only: nothing is compiled and the plugin still ships hand-written `.mjs`
+(framework.md §9 records why TypeScript itself was deferred).
 
 The zero-dependency rule governs the **shipped** scripts (framework.md §8);
 the test suite may take **dev-only** dependencies, since a user installing the
@@ -176,6 +181,11 @@ framework.md:
 - `lib/config.mjs` reads `deckard.json` with defaults, ready for M4/M5.
 - The emitter carries the source H1 into Marp's `title:` frontmatter key, and
   `layout:` becomes `_class:`.
+- **A stranded plain H4 and its content are held out of the deck** rather than
+  absorbed by the enclosing `deck:` section (§2.2, decided 2026-07-26): since
+  the finding already reports it, folding it into a presenter note would add
+  debris to an error instead of replacing it. The parser keeps the block on the
+  slide as `stranded` so a report can still quote it.
 - **Added `skills/pipeline/SKILL.md`** — the shared background every phase
   skill loads first (framework.md §8), and the home of the `--status` /
   buckets / `handoff` explanation. Each phase skill carries one line, *"Make

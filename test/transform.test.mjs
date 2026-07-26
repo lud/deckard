@@ -12,7 +12,10 @@ function emit(source) {
   return emitMarp(parseDeck(source), { source: 'presentation.md' })
 }
 
-/** Everything after the generated frontmatter. */
+/**
+ * Everything after the generated frontmatter.
+ * @param {string} output
+ */
 function slidesOf(output) {
   const parts = output.split(/^---$/m)
   return parts.slice(2).join('---')
@@ -193,14 +196,55 @@ test('a plain H4 after a deck: section never reaches the slide', () => {
   assert.doesNotMatch(output, /Stranded prose/, 'nor is the prose beneath it')
 })
 
-test('a stranded heading stays inside its section rather than vanishing', () => {
-  const output = emit(
+test('a stranded heading stays out of the presenter note', () => {
+  const source = [
+    '# D',
+    '',
+    '## Slides',
+    '',
+    '### Title',
+    '',
+    'Body.',
+    '',
+    '#### deck: Notes',
+    '',
+    '- Spoken.',
+    '',
+    '#### Buried heading',
+    '',
+    'Stranded prose.',
+  ].join('\n')
+
+  const note = (emit(source).match(/<!--[\s\S]*?-->/g) ?? [])[0]
+  assert.ok(note, 'the slide emits a presenter note')
+  assert.match(note, /- Spoken\./)
+  assert.doesNotMatch(note, /Buried heading/, 'the note carries spoken words only')
+  assert.doesNotMatch(note, /Stranded prose\./)
+
+  // Held apart rather than discarded: the finding is the signal, and the text
+  // is still there for a report to quote.
+  const deck = parse(source)
+  assert.deepEqual(
+    deck.slides[0].stranded.map((entry) => entry.text).filter(Boolean),
+    ['#### Buried heading', 'Stranded prose.'],
+  )
+  assert.deepEqual(
+    deck.slides[0].sections[0].lines.map((entry) => entry.text).filter(Boolean),
+    ['- Spoken.'],
+  )
+})
+
+test('a deck: section after a stranded block collects normally again', () => {
+  const deck = parse(
     [
       '# D',
       '',
       '## Slides',
       '',
       '### Title',
+      '<!--',
+      'media: pending',
+      '-->',
       '',
       'Body.',
       '',
@@ -211,15 +255,24 @@ test('a stranded heading stays inside its section rather than vanishing', () => 
       '#### Buried heading',
       '',
       'Stranded prose.',
+      '',
+      '#### deck: Media',
+      '',
+      'Record the terminal.',
     ].join('\n'),
   )
 
-  // Absorbed by the enclosing section, so a Notes section carries it into the
-  // presenter note: visible and linted, never quietly discarded (§5.1).
-  const note = (output.match(/<!--[\s\S]*?-->/g) ?? [])[0]
-  assert.match(note, /- Spoken\./)
-  assert.match(note, /#### Buried heading/)
-  assert.match(note, /Stranded prose\./)
+  assert.deepEqual(
+    deck.findings.map((finding) => finding.code),
+    ['unreachable-heading'],
+  )
+  const media = deck.slides[0].sections.find((section) => section.canonical === 'media')
+  assert.ok(media, 'the Media section is parsed')
+  assert.deepEqual(
+    media.lines.map((entry) => entry.text).filter(Boolean),
+    ['Record the terminal.'],
+    'the stranded block ends where the next deck: section begins',
+  )
 })
 
 test('a hash inside fenced code is never a heading', () => {

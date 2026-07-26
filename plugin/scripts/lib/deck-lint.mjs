@@ -30,6 +30,7 @@ export function countErrors(findings) {
 
 /**
  * @param {string} dir
+ * @param {string} projectDir
  * @returns {string[]} project-relative paths, in posix form
  */
 function filesUnder(dir, projectDir) {

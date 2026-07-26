@@ -138,8 +138,15 @@ finding (§5.1); a plain H4 without the prefix is ordinary content. **Ordering
 rule:** body content lives strictly *before* the first `#### deck:` heading —
 once sections start, everything up to the next slide belongs to the current
 section, so a plain H4 appearing inside a `deck:` section is unreachable as a
-content heading and is a lint finding (move it above the sections), never
-silently absorbed.
+content heading and is a lint finding (move it above the sections).
+
+That heading and everything under it, up to the next `deck:` section, are held
+**out of the generated deck** — the finding names the line, and the content is
+not folded into the enclosing section. Otherwise a stray H4 under
+`deck: Notes` would ride into the presenter notes as debris on top of the error
+already reported; one clear finding beats a finding plus polluted output.
+The §5.1 rule is about never losing content *silently*, which the line-numbered
+finding satisfies.
 
 **Heading budget.** The transform promotes the slide title H3 → H1, and
 in-slide content headings shift with it: H4 → H2, H5 → H3, H6 → H4. Markdown
@@ -507,7 +514,8 @@ prefix, and `displayName` carries the branding — so `name: deck`,
 `displayName: "Deckard"` gives the short `/deck:<skill>` commands.
 
 **Language: zero-dependency Node `.mjs`, no build step** (`// @ts-check` +
-JSDoc for editor-level types). Baseline **Node ≥ 22** — stable `node --test`
+JSDoc types, enforced by `tsc --noEmit` as `just typecheck` — dev-only, so the
+annotations are a checked contract rather than editor decoration). Baseline **Node ≥ 22** — stable `node --test`
 and `fs.globSync` with zero deps; the scripts' shared entry helper guards
 `process.version` with a clear error. Rationale: the §2 format is deliberately
 line-parseable, so no markdown-parser dependency exists to install; Marp CLI
@@ -798,6 +806,28 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   deck, §8). Migrating the prior project's real deck was considered and
   dropped — a real deck can't cover the edge-case matrix a test fixture
   should.
+
+Resolved 2026-07-26 (while landing M3):
+- **Ships plain `.mjs`; TypeScript weighed and deferred** ✔ — the `plugin/`
+  boundary makes a build step *contained*, which is not the same as free: the
+  shipped subtree is what users audit, and a compile step adds a stale-artifact
+  question to a dev loop already built on `--plugin-dir` + `/reload-plugins`
+  (worst under the M5 Stop hook, which would run stale code silently). The
+  defects M3 actually produced were semantic — content routed to the wrong
+  bucket, a missing blank line, a miscounted bucket, a column shift breaking a
+  regex — and fixtures caught all of them where types would have caught none.
+  What was missing was *enforcement* of the JSDoc already written, so
+  `just typecheck` now runs `tsc --noEmit` over `plugin/scripts/` and `test/`
+  (§8). Node's type-stripping retires this trade-off on its own once the
+  plugin's Node floor clears the experimental stage. Should the move happen
+  first, `ts-blank-space` is the tool that preserves auditability — it erases
+  annotations into spaces, so comments, indentation, lines and columns all
+  hold and a diff against the source shows only erasures (it is also the
+  strategy Node's own stripping uses, so semantics match the no-build future).
+  `tsc` keeps JSDoc but renormalizes formatting; esbuild and Bun drop comments
+  entirely, which costs the reader the prose explaining *why*. Whichever runs,
+  run it in CI and assert a clean working tree, so a stale `plugin/` cannot
+  ship or be served to `--plugin-dir`.
 
 Resolved 2026-07-26 (while landing M3):
 - **A shared background skill** ✔ — `skills/pipeline/SKILL.md`, loaded first by
