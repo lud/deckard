@@ -113,12 +113,12 @@ deliberately non-matching `allowed-tools` still scaffolded.
 
 The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
 
-- [ ] Parser: `## Slides` anchor; one slide per H3; leading HTML-comment
+- [x] Parser: `## Slides` anchor; one slide per H3; leading HTML-comment
       `key: value` metadata block; body = everything up to the first
       `#### deck:` heading; `deck:`-prefixed H4 sections (`Media` / `Notes` /
       `Knowledge`, case-insensitive; unknown names = lint finding; a plain
       H4 without the prefix is content).
-- [ ] Emitter: body → slide with headings promoted two levels (title
+- [x] Emitter: body → slide with headings promoted two levels (title
       H3 → H1, content H4 → H2 … H6 → H4); `deck: Media` dropped (produced
       assets live in the body); `deck: Notes` → a **separate**
       presenter-note comment; `deck: Knowledge` dropped; layout keys →
@@ -128,7 +128,7 @@ The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
       generated file opens with a do-not-edit **YAML comment inside the
       frontmatter** (an HTML comment there becomes slide 1's presenter
       note, §5.1).
-- [ ] `--lint`: every referenced asset resolves on disk; orphaned media in
+- [x] `--lint`: every referenced asset resolves on disk; orphaned media in
       `output/`/`assets/` flagged; malformed metadata blocks reported with
       line numbers; unrecognized content (unknown `deck:` section names,
       stray content between anchors, plain H4 inside a `deck:` section —
@@ -137,12 +137,12 @@ The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
       state/section coherence per §5.5 (`deck: Media` present on a
       `done | none` slide = stale intent; `pending | handoff` with no
       `deck: Media` = missing directive).
-- [ ] Unit tests: metadata edge cases, directive scoping, note-vs-directive
+- [x] Unit tests: metadata edge cases, directive scoping, note-vs-directive
       separation, slides with no media, meta sections ignored, heading
       promotion (H4–H6 → H2–H4; plain H4 is content, `deck:` H4 is a
       section, case-insensitive), `#`-prefixed lines inside fenced code not
       parsed as headings (§2.1).
-- [ ] **Golden fixture — purpose-built in this repo:** `test/fixtures/`
+- [x] **Golden fixture — purpose-built in this repo:** `test/fixtures/`
       holds a hand-authored **kitchen-sink deck** in §2 format — a
       `presentation.md`, the assets it references (stubs are fine; lint
       checks existence), and the expected `slides.md` — with a golden-file
@@ -154,12 +154,36 @@ The keystone. Line-based per §2 (no markdown parser), emitting Marp per §4.
       `## Slides`) and one slide per **slide class** the brand kits style
       (cover/lead, bg-image aside, bullets, code/table) — the same deck
       later serves M8's theme-verification exports and layout iteration.
-- [ ] Lint fixtures: small deliberately-broken decks asserting each `--lint`
+- [x] Lint fixtures: small deliberately-broken decks asserting each `--lint`
       finding (missing asset, orphaned asset, malformed metadata, unknown
       `deck:` section, unreachable plain H4, state/section incoherence).
 
 **Done when:** the golden test passes, the kitchen-sink fixture lints clean,
 and each lint fixture produces exactly its expected finding.
+
+**Landed 2026-07-26.** `just check` green (46 tests). Twelve lint fixtures,
+each producing exactly one distinct code; the nine-slide kitchen sink lints
+clean and round-trips to a reviewed golden file. Deviations folded into
+framework.md:
+
+- **Findings carry a severity, and only errors fail** — `orphaned-asset` is a
+  warning, since producing media leaves alternates behind and only the author
+  knows which still matter (§5.5). Severity is one per-code set, so moving a
+  finding between the two is a one-line change.
+- **The parser, emitter and linter are three modules under `scripts/lib/`**
+  rather than one file, with `plan-to-slides.mjs` as the CLI over them. One
+  parse tree still feeds all three modes (§8 tree updated).
+- `lib/config.mjs` reads `deckard.json` with defaults, ready for M4/M5.
+- The emitter carries the source H1 into Marp's `title:` frontmatter key, and
+  `layout:` becomes `_class:`.
+- **Added `skills/pipeline/SKILL.md`** — the shared background every phase
+  skill loads first (framework.md §8), and the home of the `--status` /
+  buckets / `handoff` explanation. Each phase skill carries one line, *"Make
+  sure the `deck:pipeline` knowledge skill is loaded"*, and the skill is
+  model-invocable so that line resolves through the Skill tool. A test asserts
+  each phase skill carries it, so M4's and M6's skills cannot land without it.
+  Its own description needed quoting: a `: ` inside it is the M1 colon trap
+  again.
 
 ## M4 — Build & publish (`/deck:build`)
 
@@ -189,7 +213,18 @@ Needs M4's build entry point.
 
 - [ ] `scripts/autobuild.mjs` — exit fast when `deckard.json` absent; hash
       `presentation.md` + active theme against `.build/last-build.hash`;
-      rebuild (build only, no publish/lint) on change.
+      rebuild (build only, no publish) on change.
+- [ ] **Surface errors, and only errors** (decided 2026-07-26). A silent
+      auto-rebuild would let a deck break and stay broken until someone ran
+      `/deck:build`, so the hook reports **error**-severity findings — one
+      terse line naming the count and `--lint`, never a full report. It stays
+      **silent when clean**, which is the hook's whole point on a quiet turn.
+      **Warnings are deliberately excluded:** `orphaned-asset` fires
+      constantly and legitimately while media is being produced, and a nag on
+      every turn is how users learn to ignore output — the same reasoning that
+      made it a warning to begin with (§5.5). A useful consequence: with
+      warnings out of scope the hook can skip the orphan directory scan, so it
+      does no filesystem walk beyond reading the source.
 - [ ] `hooks/hooks.json` — `Stop` event, `async: true`, sensible timeout.
 - [ ] Verify `async: true` on Stop hooks against the installed CLI (docs say
       supported as of 2026-07-24, incl. `asyncRewake`; confirm empirically

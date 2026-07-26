@@ -6,4 +6,6 @@ disable-model-invocation: true
 
 # /deck:build
 
+Make sure the `deck:pipeline` knowledge skill is loaded.
+
 Stub — implemented at milestone M4 of `build-plan.md`.

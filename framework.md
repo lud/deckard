@@ -431,7 +431,17 @@ per-slide `{title, mediaState, assets}` JSON for `/media` — one parser, two
 consumers): confirm every asset path referenced in the source resolves on
 disk, and flag
 orphaned media referenced nowhere (cutting a slide once left dead gifs + a stale
-tape registration). Also flag **state/section incoherence**: a `deck: Media`
+tape registration).
+
+Findings carry a **severity**, and only errors fail the run. `orphaned-asset` is
+a **warning**: producing media leaves alternates behind — a GIF and a still of
+the same moment, three takes of one capture — and only the author knows which
+still matter, so failing a build over them would teach people to stop running
+the linter. Everything else is an error, because it names something the format
+cannot express. Severity is a per-code policy in one set, so moving a finding
+between the two is a one-line change.
+
+Also flag **state/section incoherence**: a `deck: Media`
 section on a `media: done | none` slide is stale intent; `media: pending |
 handoff` with *no* `deck: Media` section is a missing directive; and the
 §2.2 ordering rule (plain H4 inside a `deck:` section = unreachable content
@@ -534,6 +544,7 @@ deckard/                       # own repo: ~/src/deckard — the dev root
  plugin/                       # ↓ everything below here is what ships
   .claude-plugin/plugin.json   # name: deck → prefix /deck:* ; displayName: Deckard
   skills/
+    pipeline/SKILL.md          # shared background; every phase skill loads it first
     init/SKILL.md              # bang-command → scripts/init.mjs; deterministic scaffold
     ideate/SKILL.md            # discuss data/ → notes.md; re-run assesses delta (§3 P1)
     plan/SKILL.md              # notes.md + data/ → presentation.md; re-run reconciles
@@ -542,6 +553,11 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     build/SKILL.md             # explicit build+publish: lint, render, report
   hooks/hooks.json             # Stop event, async: true → scripts/autobuild.mjs
   scripts/                     # all zero-dep Node, no install step
+    lib/entry.mjs              # Node ≥ 22 guard + isEntryPoint (CLI or import)
+    lib/config.mjs             # deckard.json + defaults, for every script
+    lib/deck-parse.mjs         # THE §2 parser — line-based, fence-aware
+    lib/deck-emit.mjs          # parse tree → Marp (§4)
+    lib/deck-lint.mjs          # fix 5.5, over the same parse tree
     init.mjs                   # idempotent: data/, skeleton docs, deckard.json
     plan-to-slides.mjs         # presentation.md → .build/slides.md (§4); --lint = fix 5.5; --status = media-state JSON for /media
     autobuild.mjs              # exits fast unless deckard.json present + source changed
@@ -601,6 +617,34 @@ project is being used to test — the flag takes the *shipped subtree*, verified
 to load from a subdirectory) + `/reload-plugins`; `claude plugin validate
 plugin --strict` in CI, wired as `just validate`.
 
+### The shared background skill
+A session can begin at any phase — often `/plan` directly, sometimes `/build` on
+an inherited project — so every phase skill opens with one line:
+
+> Make sure the `deck:pipeline` knowledge skill is loaded.
+
+`skills/pipeline/SKILL.md` holds what every phase needs and no phase should
+restate: the four phases and their artifacts, the §2 source format with its
+heading budget, the transform's three modes (including what `--status` buckets
+are for and why state is read from JSON rather than inferred from prose), the
+five media states with the "closed stays closed" and "handoff is explicit"
+rules, and the config and brand-kit contracts.
+
+Unlike the phase skills it is **model-invocable** — it carries no
+`disable-model-invocation`, because shared knowledge is something the model
+should be able to reach for, while the phases stay deliberate user-triggered
+gates. So the pointer is a one-line request the model satisfies with the Skill
+tool (verified 2026-07-26: a fresh `/deck:init` session's only tool call was
+`Skill(deck:pipeline)`), and the skill loads once per session rather than per
+phase invocation. It earns its keep on its own too: `/deck:pipeline` explains
+the tool to whoever inherits a deck, and the model can load it when a deck
+question comes up outside any phase command.
+
+Naming the skill rather than a file path is what keeps this cheap to maintain:
+the pointer carries no description of the contents to drift out of date — the
+skill's own `description` says when it applies. A test asserts every phase
+skill carries the line, so a new skill cannot quietly skip it.
+
 ### Project config — `deckard.json`
 Created by `/init` at the project root. Holds the brand-kit reference, the
 source filename if overridden from `presentation.md`, the preferred capture
@@ -638,6 +682,13 @@ the user. It no-ops without `deckard.json`, hashes `presentation.md` + theme
 against the last build, and re-renders only on change — quiet turns cost
 nothing. `/build` remains the explicit path: full lint + publish + a
 human-readable report; the hook only does the fast incremental render.
+
+The hook is not silent about breakage, though: it reports **error**-severity
+findings as one terse line pointing at `--lint`, and says nothing at all when
+the deck is clean. Warnings stay out of the automatic path — `orphaned-asset`
+fires legitimately on every turn while media is being produced, and output that
+nags every turn is output people learn to skip. `/build` is where the full
+picture, warnings included, gets reported.
 
 ### Brand kit — a directory contract, not a skill
 Scripts can't consume a skill and a config file can't reference one, so a kit
@@ -747,6 +798,14 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   deck, §8). Migrating the prior project's real deck was considered and
   dropped — a real deck can't cover the edge-case matrix a test fixture
   should.
+
+Resolved 2026-07-26 (while landing M3):
+- **A shared background skill** ✔ — `skills/pipeline/SKILL.md`, loaded first by
+  every phase skill, since a session may start at any phase (§8). It is where
+  `--status`, its buckets, and the `handoff` state are explained, so no phase
+  skill restates them and none of them are left to inference. **Model-invocable**
+  (the only skill that is), and pointed at by name rather than by path, so the
+  one-line pointer has nothing in it to keep in sync.
 
 Resolved 2026-07-26 (while landing M1):
 - **The plugin is a `plugin/` subtree, not the repo root** ✔ — ships exactly

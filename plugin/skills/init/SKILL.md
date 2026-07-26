@@ -7,6 +7,8 @@ allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")
 
 # /deck:init
 
+Make sure the `deck:pipeline` knowledge skill is loaded.
+
 !`node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"`
 
 The scaffold has run and its report is above. Relay it: which paths were

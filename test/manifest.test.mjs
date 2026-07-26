@@ -15,7 +15,12 @@ import { parse } from 'yaml'
 const pluginRoot = fileURLToPath(new URL('../plugin', import.meta.url))
 
 /** Skills carrying a phase of the pipeline (framework.md §1). */
-const SKILLS = ['build', 'ideate', 'init', 'media', 'plan']
+const PHASE_SKILLS = ['build', 'ideate', 'init', 'media', 'plan']
+
+/** Shared background that every phase skill points at, whichever runs first. */
+const SHARED_SKILL = 'pipeline'
+
+const SKILLS = [...PHASE_SKILLS, SHARED_SKILL].sort()
 
 /** Frontmatter keys this repo deliberately uses; anything else is a typo. */
 const KNOWN_KEYS = new Set([
@@ -50,6 +55,42 @@ test('every pipeline phase has a skill directory', () => {
   assert.deepEqual(found, SKILLS)
 })
 
+test('every phase skill loads the shared background first', () => {
+  for (const skill of PHASE_SKILLS) {
+    const { body } = readSkill(skill)
+    assert.match(
+      body,
+      new RegExp(`\`deck:${SHARED_SKILL}\``),
+      `${skill}: asks for the deck:${SHARED_SKILL} skill, so whichever phase runs first loads it`,
+    )
+  }
+})
+
+test('the shared skill is model-invocable, unlike the phase gates', () => {
+  const { frontmatter } = readSkill(SHARED_SKILL)
+  assert.notEqual(
+    frontmatter['disable-model-invocation'],
+    true,
+    'the phases are deliberate gates; shared knowledge is something the model may reach for',
+  )
+})
+
+test('the shared skill explains what a phase skill would otherwise restate', () => {
+  const { body } = readSkill(SHARED_SKILL)
+  for (const [topic, pattern] of [
+    ['the four phases', /\/deck:ideate/],
+    ['the ## Slides anchor', /## Slides/],
+    ['the heading budget', /H4 → H2/],
+    ['the deck: sections', /deck: Media/],
+    ['--lint severities', /warnings exit 0/],
+    ['--status and its buckets', /buckets/],
+    ['every media state', /handoff/],
+    ['handoff being explicit', /never inferred/],
+  ]) {
+    assert.match(body, pattern, `the shared skill covers ${topic}`)
+  }
+})
+
 test('skill frontmatter is well-formed', () => {
   for (const skill of SKILLS) {
     const { frontmatter, body } = readSkill(skill)
@@ -57,11 +98,13 @@ test('skill frontmatter is well-formed', () => {
     assert.equal(frontmatter.name, skill, `${skill}: frontmatter name matches the directory`)
     assert.equal(typeof frontmatter.description, 'string', `${skill}: has a description`)
     assert.ok(frontmatter.description.trim().length > 0, `${skill}: description is not blank`)
-    assert.equal(
-      frontmatter['disable-model-invocation'],
-      true,
-      `${skill}: the phases are user-triggered gates (a boolean true, not a string)`,
-    )
+    if (PHASE_SKILLS.includes(skill)) {
+      assert.equal(
+        frontmatter['disable-model-invocation'],
+        true,
+        `${skill}: the phases are user-triggered gates (a boolean true, not a string)`,
+      )
+    }
     assert.ok(body.trim().length > 0, `${skill}: has a body`)
 
     for (const key of Object.keys(frontmatter)) {
