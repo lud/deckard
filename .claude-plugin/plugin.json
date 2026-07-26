@@ -1,0 +1,10 @@
+{
+  "name": "deck",
+  "displayName": "Deckard",
+  "description": "Build a presentation from source data to a self-contained Marp deck: ideate, plan, produce media, build.",
+  "version": "0.0.1",
+  "author": {
+    "name": "lud",
+    "email": "ludovic.demblans@protonmail.com"
+  }
+}

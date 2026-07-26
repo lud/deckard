@@ -507,6 +507,15 @@ Python's interpreter/env roulette); and shipping compiled binaries (Rust/Go/
 Zig) in a plugin is an arch×OS matrix plus a supply-chain trust problem —
 unauditable executables have no place in an open-sourceable tool.
 
+The rule governs **what ships**: the runtime scripts a user's session executes.
+The test suite is free to take dev-only dependencies (a `package.json` with
+`devDependencies`, git-ignored `node_modules`, committed lockfile) — none of it
+reaches a plugin install, so neither the hook's startup cost nor the
+no-install-step promise is affected. Where a real parser exists for a format
+*we author*, tests use it rather than re-implementing one; the line-based
+parsing of §2 is a property of the source format under test, not a house style
+for the tests that exercise it.
+
 ```
 deckard/                       # own repo: ~/src/deckard
   .claude-plugin/plugin.json   # name: deck → prefix /deck:* ; displayName: Deckard
@@ -679,6 +688,12 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   deck, §8). Migrating the prior project's real deck was considered and
   dropped — a real deck can't cover the edge-case matrix a test fixture
   should.
+
+Resolved 2026-07-26 (while landing M1):
+- **Test-only dependencies are allowed** ✔ — the zero-dependency rule governs
+  the shipped runtime scripts, not the test suite (§8). First one: `yaml` v2
+  for SKILL.md frontmatter, so descriptions can contain colons without the
+  tests pretending to be a YAML parser.
 
 Still open: nothing blocking. Next step: scaffold §8 and write
 `plan-to-slides.mjs`, validated against the purpose-built kitchen-sink

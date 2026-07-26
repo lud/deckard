@@ -1,0 +1,16 @@
+{
+  "name": "deckard",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Development tooling for the Deckard Claude plugin. The plugin itself ships zero runtime dependencies; everything here is test-only.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.0"
+  }
+}
