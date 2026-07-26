@@ -5,6 +5,6 @@ test:
     node --test
 
 validate:
-    claude plugin validate . --strict
+    claude plugin validate plugin --strict
 
 check: install test validate

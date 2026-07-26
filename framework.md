@@ -516,8 +516,22 @@ no-install-step promise is affected. Where a real parser exists for a format
 parsing of §2 is a property of the source format under test, not a house style
 for the tests that exercise it.
 
+The repo separates **what ships** from **what develops it**: the plugin is the
+`plugin/` subtree and nothing else. Dev-only material — `package.json` and its
+git-ignored `node_modules`, `test/`, the `justfile`, `CLAUDE.md`, and these two
+design docs — sits at the repo root, outside the shipped payload. This also
+keeps `CLAUDE.md` at the root where a developer expects it: at a plugin root
+the validator warns it "is not loaded as project context", advice aimed at
+context a plugin ships to *users*, which this file is not.
+
 ```
-deckard/                       # own repo: ~/src/deckard
+deckard/                       # own repo: ~/src/deckard — the dev root
+  CLAUDE.md  justfile          # development rules; `just check` = local CI
+  package.json  test/          # test-only deps (§ zero-dep rule below)
+  framework.md  build-plan.md
+  utils/
+    transcript.py              # standalone retrospective tool (session .jsonl → md)
+ plugin/                       # ↓ everything below here is what ships
   .claude-plugin/plugin.json   # name: deck → prefix /deck:* ; displayName: Deckard
   skills/
     init/SKILL.md              # bang-command → scripts/init.mjs; deterministic scaffold
@@ -540,15 +554,15 @@ deckard/                       # own repo: ~/src/deckard
     common.tape                # default VHS look, for the VHS media path
   brand-kits/
     default/                   # neutral bundled kit (directory contract below)
-  utils/
-    transcript.py              # standalone retrospective tool (session .jsonl → md)
 ```
 
 The phase skills carry `disable-model-invocation: true` (the phases are
 deliberate user-triggered gates), and skills pre-authorize their tooling with
 `allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/*)` so builds don't prompt.
-Local development: `claude --plugin-dir ~/src/deckard` (from whichever project
-is being used to test) + `/reload-plugins`; `claude plugin validate` in CI.
+Local development: `claude --plugin-dir ~/src/deckard/plugin` (from whichever
+project is being used to test — the flag takes the *shipped subtree*, verified
+to load from a subdirectory) + `/reload-plugins`; `claude plugin validate
+plugin --strict` in CI, wired as `just validate`.
 
 ### Project config — `deckard.json`
 Created by `/init` at the project root. Holds the brand-kit reference, the
@@ -690,6 +704,12 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   should.
 
 Resolved 2026-07-26 (while landing M1):
+- **The plugin is a `plugin/` subtree, not the repo root** ✔ — ships exactly
+  what's under it; dev environment (deps, tests, justfile, `CLAUDE.md`, these
+  docs) stays at the root (§8). `--plugin-dir` loads a subdirectory fine
+  (verified). No build step for now: `.mjs` goes straight into `plugin/`, and
+  the boundary is what makes a later compile step (TypeScript into `plugin/`)
+  a contained change rather than a restructure.
 - **Test-only dependencies are allowed** ✔ — the zero-dependency rule governs
   the shipped runtime scripts, not the test suite (§8). First one: `yaml` v2
   for SKILL.md frontmatter, so descriptions can contain colons without the

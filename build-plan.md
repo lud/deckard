@@ -13,11 +13,11 @@ scripts (M4), a prior media skill and VHS tapes (M6), the WTTJ brand styles
 supplied is snapshot-copied in — runtime, tests, and CI reference only this
 repo. Scrub rule: no WTTJ-branded material (theme, fonts, logos) lands in
 this open-source repo; brand material goes only into the private kit dir at
-M8. Iterate by starting test sessions with `claude --plugin-dir ~/src/deckard`
+M8. Iterate by starting test sessions with `claude --plugin-dir ~/src/deckard/plugin`
 in a scratch project, with `/reload-plugins` after edits.
 
 **Testing baseline (all milestones):** Node **≥ 22** (stable `node --test`,
-`fs.globSync`); `node --test` under `test/`; `claude plugin validate .
+`fs.globSync`); `node --test` under `test/`; `claude plugin validate plugin
 --strict` must pass whenever the manifest or a SKILL.md changes. `just check`
 runs install + test + validate.
 
@@ -27,6 +27,13 @@ plugin never installs them. Currently one: **`yaml` v2** for SKILL.md
 frontmatter — chosen over `gray-matter`, which pulls js-yaml v3 (YAML **1.1**,
 unmaintained) and would disagree with the CLI about what valid frontmatter
 means; `yaml` v2 is YAML 1.2 with zero transitive deps.
+
+**Repo layout:** the plugin is the `plugin/` subtree; the repo root is the dev
+environment (framework.md §8). Validation therefore targets `plugin`, not `.`.
+This started as a `CLAUDE.md` problem — at a plugin root the validator warns it
+"is not loaded as project context", which fails `--strict` — and the subtree
+split fixes it at the source: the root is no longer a plugin, so `CLAUDE.md`
+sits there normally and never ships.
 
 **Division of labour with `claude plugin validate --strict`** (probed
 empirically 2026-07-26 — do not assume): the CLI owns YAML validity (it caught
@@ -52,16 +59,16 @@ Everything else needs a loadable plugin to iterate inside.
 - [x] `scripts/`, `templates/`, `brand-kits/default/`, `test/` directories.
 - [x] `.gitignore` and a `node --test` smoke test that the manifest parses.
 
-**Done when:** `claude plugin validate .` passes and a session started with
-`--plugin-dir .` lists `/deck:init` … `/deck:build` — verify empirically that
-the `deck` prefix renders as expected. The short `deck` prefix is the hard
+**Done when:** `claude plugin validate plugin` passes and a session started
+with `--plugin-dir plugin` lists `/deck:init` … `/deck:build` — verify
+empirically that the `deck` prefix renders as expected. The short `deck` prefix is the hard
 requirement; individual skill names are flexible (`init` → `scaffold`, etc.)
 if a collision or UX surprise appears.
 
-**Landed 2026-07-26.** `node --test` and `claude plugin validate . --strict`
-both green; `claude --plugin-dir . -p "/deck:build"` in a scratch project
-resolved the command and loaded the stub body, so the `deck` prefix and skill
-discovery are confirmed empirically.
+**Landed 2026-07-26.** `just check` green (3 tests + strict validation);
+`claude --plugin-dir <repo>/plugin -p "/deck:init"` in an empty scratch
+project resolved the command and loaded the stub body, so the `deck` prefix,
+skill discovery, and subdirectory loading are confirmed empirically.
 
 ## M2 — `/deck:init` (scaffold)
 
@@ -249,7 +256,14 @@ builds correctly under both.
 - [ ] README (install, quickstart, the four phases, Node ≥ 22 requirement),
       license, marketplace metadata; `utils/transcript.py` ships as the
       standalone retrospective tool.
-- [ ] CI: `node --test` + `claude plugin validate`.
+- [ ] Marketplace manifest (`.claude-plugin/marketplace.json` at the repo
+      root, `"source": "./plugin"` — validated as a working shape 2026-07-26,
+      deferred to here since nothing needs it earlier). It needs its own
+      `description` to survive `--strict`, and **validation does not check
+      that `source` resolves** — a manifest pointing at a nonexistent
+      directory passes clean, so the test suite must assert the link.
+- [ ] CI: `just check` (install + `node --test` + `claude plugin validate
+      plugin --strict`), plus validating the marketplace manifest at the root.
 - [ ] Final dogfood: a genuinely fresh deck built start-to-finish on the
       published plugin.
 
