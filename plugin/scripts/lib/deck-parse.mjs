@@ -51,6 +51,7 @@ const IMAGE = /!\[[^\]]*\]\(\s*([^)\s]+)/g
  * @typedef {{ name: string, canonical: string, line: number, lines: Line[] }} Section
  * @typedef {{ key: string, value: string, line: number }} MetaEntry
  * @typedef {{ code: string, line: number, message: string }} Finding
+ * @typedef {{ text: string, line: number, index: number }} Cursor
  * @typedef {{
  *   title: string, line: number, metadata: MetaEntry[], body: Line[],
  *   sections: Section[], stranded: Line[]
@@ -100,120 +101,192 @@ export function parseDeck(source) {
     // Anything outside a slide is meta prose for humans and agents (§2.1).
   }
 
-  for (let index = 0; index < lines.length; index++) {
+  // Each handler below returns the index the loop resumes from. That is the
+  // line it was given, except for a metadata block, which spans several.
+
+  /** Take the line as content, wherever the current context sends it.
+   * @param {Cursor} at
+   * @returns {number}
+   */
+  const keep = ({ text, line, index }) => {
+    collect({ text, line, fenced: false })
+    return index
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {RegExpMatchArray | null} fenceMark
+   * @returns {number}
+   */
+  const handleFencedLine = ({ text, line, index }, fenceMark) => {
+    collect({ text, line, fenced: true })
+    if (fence && fenceMark && fenceMark[1][0] === fence[0] && fenceMark[1].length >= fence.length) {
+      fence = null
+    }
+    return index
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {string} mark
+   * @returns {number}
+   */
+  const handleFenceStart = ({ text, line, index }, mark) => {
+    fence = mark
+    awaitingMetadata = false
+    collect({ text, line, fenced: true })
+    return index
+  }
+
+  /**
+   * The lines between a slide's title and its body may hold the metadata
+   * comment (§2.3). Returns null when this line is neither, leaving the caller
+   * to treat it as the start of the body.
+   * @param {Cursor} at
+   * @returns {number | null}
+   */
+  const handlePendingMetadata = (at) => {
+    if (at.text.trim() === '') return keep(at)
+    if (at.text.trimStart().startsWith('<!--')) {
+      const resume = readMetadata(lines, at.index, /** @type {Slide} */ (slide), flag)
+      awaitingMetadata = false
+      return resume
+    }
+    awaitingMetadata = false
+    return null
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {string} label
+   * @returns {number}
+   */
+  const handleH1 = (at, label) => {
+    if (title === null && !inSlides) {
+      title = label
+      return at.index
+    }
+    flag('unexpected-heading', at.line, `H1 "${label}" belongs at the top of the document only`)
+    // Kept in the body regardless: a finding reports it, the transform never
+    // quietly loses it (§5.1).
+    return keep(at)
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {string} label
+   * @returns {number}
+   */
+  const handleH2 = (at, label) => {
+    if (label.toLowerCase() === ANCHOR) {
+      if (inSlides) flag('duplicate-anchor', at.line, 'a second "## Slides" anchor')
+      inSlides = true
+      slide = null
+      section = null
+      return at.index
+    }
+    if (inSlides) {
+      flag('heading-after-slides', at.line, `H2 "${label}" appears after the "## Slides" anchor`)
+      return keep(at)
+    }
+    // A meta section above the anchor: prose for humans and agents (§2.1).
+    return at.index
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {string} label
+   * @returns {number}
+   */
+  const handleH3 = (at, label) => {
+    if (!inSlides) return keep(at)
+    slide = { title: label, line: at.line, metadata: [], body: [], sections: [], stranded: [] }
+    slides.push(slide)
+    section = null
+    stranded = null
+    awaitingMetadata = true
+    return at.index
+  }
+
+  /**
+   * @param {Cursor} at
+   * @param {string} label
+   * @returns {number}
+   */
+  const handleH4 = (at, label) => {
+    const current = slide
+    if (!current) {
+      flag('stray-content', at.line, `"${label}" sits between the anchor and the first slide`)
+      return at.index
+    }
+
+    const deck = label.match(/^deck:\s*(.*)$/i)
+    if (deck) {
+      const name = deck[1].trim()
+      const canonical = name.toLowerCase()
+      if (!SECTION_NAMES.has(canonical)) {
+        flag(
+          'unknown-section',
+          at.line,
+          `unknown section "deck: ${name}" — expected Media, Notes or Knowledge`,
+        )
+      }
+      section = { name, canonical, line: at.line, lines: [] }
+      stranded = null
+      current.sections.push(section)
+      return at.index
+    }
+
+    if (current.sections.length > 0) {
+      flag(
+        'unreachable-heading',
+        at.line,
+        `content heading "${label}" sits inside a "deck:" section, so it and the content under it are left out of the deck — move them above the sections`,
+      )
+      stranded = current.stranded
+    }
+    return keep(at)
+  }
+
+  /**
+   * @param {number} index
+   * @returns {number} the index the loop resumes from
+   */
+  const handleLine = (index) => {
     const text = lines[index]
-    const line = index + 1
+    /** @type {Cursor} */
+    const at = { text, line: index + 1, index }
     const fenceMark = text.match(/^\s{0,3}(`{3,}|~{3,})/)
 
-    if (fence) {
-      collect({ text, line, fenced: true })
-      if (fenceMark && fenceMark[1][0] === fence[0] && fenceMark[1].length >= fence.length) {
-        fence = null
-      }
-      continue
-    }
-    if (fenceMark) {
-      fence = fenceMark[1]
-      awaitingMetadata = false
-      collect({ text, line, fenced: true })
-      continue
-    }
+    if (fence) return handleFencedLine(at, fenceMark)
+    if (fenceMark) return handleFenceStart(at, fenceMark[1])
 
     const heading = text.match(/^(#{1,6})\s+(.*)$/)
 
     if (awaitingMetadata && !heading) {
-      if (text.trim() === '') {
-        collect({ text, line, fenced: false })
-        continue
-      }
-      if (text.trimStart().startsWith('<!--')) {
-        index = readMetadata(lines, index, /** @type {Slide} */ (slide), flag)
-        awaitingMetadata = false
-        continue
-      }
-      awaitingMetadata = false
+      const resume = handlePendingMetadata(at)
+      if (resume !== null) return resume
     }
 
-    if (!heading) {
-      collect({ text, line, fenced: false })
-      continue
-    }
+    if (!heading) return keep(at)
 
-    const level = heading[1].length
     const label = heading[2].trim()
-
-    if (level === 1) {
-      if (title === null && !inSlides) {
-        title = label
-      } else {
-        flag('unexpected-heading', line, `H1 "${label}" belongs at the top of the document only`)
-        // Kept in the body regardless: a finding reports it, the transform
-        // never quietly loses it (§5.1).
-        collect({ text, line, fenced: false })
-      }
-      continue
+    switch (heading[1].length) {
+      case 1:
+        return handleH1(at, label)
+      case 2:
+        return handleH2(at, label)
+      case 3:
+        return handleH3(at, label)
+      case 4:
+        return inSlides ? handleH4(at, label) : keep(at)
+      default:
+        return keep(at)
     }
+  }
 
-    if (level === 2) {
-      if (label.toLowerCase() === ANCHOR) {
-        if (inSlides) flag('duplicate-anchor', line, 'a second "## Slides" anchor')
-        inSlides = true
-        slide = null
-        section = null
-      } else if (inSlides) {
-        flag('heading-after-slides', line, `H2 "${label}" appears after the "## Slides" anchor`)
-        collect({ text, line, fenced: false })
-      }
-      continue
-    }
-
-    if (level === 3) {
-      if (!inSlides) {
-        collect({ text, line, fenced: false })
-        continue
-      }
-      slide = { title: label, line, metadata: [], body: [], sections: [], stranded: [] }
-      slides.push(slide)
-      section = null
-      stranded = null
-      awaitingMetadata = true
-      continue
-    }
-
-    if (level === 4 && inSlides) {
-      if (!slide) {
-        flag('stray-content', line, `"${label}" sits between the anchor and the first slide`)
-        continue
-      }
-      const deck = label.match(/^deck:\s*(.*)$/i)
-      if (deck) {
-        const name = deck[1].trim()
-        const canonical = name.toLowerCase()
-        if (!SECTION_NAMES.has(canonical)) {
-          flag(
-            'unknown-section',
-            line,
-            `unknown section "deck: ${name}" — expected Media, Notes or Knowledge`,
-          )
-        }
-        section = { name, canonical, line, lines: [] }
-        stranded = null
-        slide.sections.push(section)
-        continue
-      }
-      if (slide.sections.length > 0) {
-        flag(
-          'unreachable-heading',
-          line,
-          `content heading "${label}" sits inside a "deck:" section, so it and the content under it are left out of the deck — move them above the sections`,
-        )
-        stranded = slide.stranded
-      }
-      collect({ text, line, fenced: false })
-      continue
-    }
-
-    collect({ text, line, fenced: false })
+  for (let index = 0; index < lines.length; index++) {
+    index = handleLine(index)
   }
 
   if (fence) flag('unterminated-fence', lines.length, 'a fenced code block is never closed')

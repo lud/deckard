@@ -9,7 +9,8 @@ export const DEFAULTS = {
   captureTool: 'vhs',
   outDir: '.build',
   publish: 'slides.html',
-  marpVersion: '4.5.0',
+  /** Path to a Marp CLI, when it is not on PATH. */
+  marpCommand: null,
 }
 
 export const CONFIG_FILE = 'deckard.json'

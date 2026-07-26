@@ -308,11 +308,27 @@ title)** rather than shrink text (Marp doesn't auto-shrink). Keep **build vs.
 publish** distinct: build = fast local render; publish = self-contained
 shareable HTML. Never re-run a document converter (pandoc, single-file-cli) over
 already-rendered Marp output — it re-parses and mangles Marp's player; use
-literal asset-path → data-URI substitution. Marp CLI runs at a **pinned
-version**: `npx @marp-team/marp-cli@4.5.0`, a constant in `build.mjs`,
-overridable via `marpVersion` in `deckard.json` — floating on latest
-contradicts reproducibility and §5.7's empiricism. 4.5.0 is verified
-end-to-end: it rendered the prior project's full deck (confirmed 2026-07-24).
+literal asset-path → data-URI substitution.
+
+**Deckard locates a Marp CLI; it never downloads one.** The build looks for
+`marpCommand` from `deckard.json`, then `marp` on `PATH`, then the project's
+`node_modules/.bin/marp`. Reaching for `npx @marp-team/marp-cli@<version>`
+instead would fetch and execute ~160 third-party packages behind a permission
+grant that reads as "run one script", with npm's own confirmation suppressed by
+`-y` — the supply-chain objection §8 raised against shipping binaries, arriving
+through a side door, and only the top-level version pinned at that. It also
+breaks offline and in CI.
+
+When nothing is found, the build stops and **asks the user to install it**,
+naming both a global and a project-local command and where to record a path
+(`marpCommand`). The wording tells the agent not to install software on its own
+unless the user has already endorsed that in the session — an agent silently
+installing 160 packages is exactly the surprise this avoids.
+
+The version Deckard is **verified against** is 4.5.0 (it rendered the prior
+project's full deck, confirmed 2026-07-24). A different version is a note in
+the report, not a refusal: Marp is stable across releases, and declining to
+render over a version string would be stricter than the risk warrants.
 
 ---
 
@@ -347,9 +363,19 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
   (§2.3 caveat).
 - **`speaker-notes.md` is gone entirely.** Notes live once, in the source doc,
   and ride into the deck as presenter notes. No second copy, no drift.
-- Fonts embed at the **theme layer** (`embed-fonts.sh` bakes base64 `@font-face`
-  into the theme CSS between markers; Marp inlines the theme verbatim), so the
-  published deck is self-contained with no publish-script changes.
+- Fonts embed at the **theme layer** (`embed-fonts.mjs` rewrites the theme's
+  `url()` references as base64 data URIs; Marp inlines the theme verbatim), so
+  the published deck is self-contained with no publish-script changes.
+  Substituting the references a kit author already wrote — rather than
+  synthesising `@font-face` rules from filenames — leaves family names, weights
+  and `unicode-range` under the kit's control and invents no naming convention.
+  The composed theme is written to the build directory, so a build never
+  mutates the kit it read.
+- **Build and publish write to different files.** The render lands in
+  `<outDir>/slides.html`, git-ignored and keeping relative asset paths; publish
+  writes the configured `publish` name at the project root, self-contained.
+  Errors from `--lint` stop a build before rendering, since a deck holding what
+  the format cannot express renders into output nobody should trust.
 
 **Direct Marp authoring — evaluated, rejected (2026-07-24).** The alternative
 (meta sections in an `info.md`, the agent authoring `slides.md` directly as
@@ -670,7 +696,7 @@ optional with a default, since the file's mere presence is already the marker:
   "captureTool": "vhs",          // default; informational, for /media
   "outDir": ".build",            // default
   "publish": "slides.html",      // default output name
-  "marpVersion": "4.5.0"         // overrides the pinned default (§3 Phase 4)
+  "marpCommand": null            // path to a Marp CLI when it is not on PATH
 }
 ```
 
@@ -691,12 +717,19 @@ against the last build, and re-renders only on change — quiet turns cost
 nothing. `/build` remains the explicit path: full lint + publish + a
 human-readable report; the hook only does the fast incremental render.
 
-The hook is not silent about breakage, though: it reports **error**-severity
-findings as one terse line pointing at `--lint`, and says nothing at all when
-the deck is clean. Warnings stay out of the automatic path — `orphaned-asset`
-fires legitimately on every turn while media is being produced, and output that
-nags every turn is output people learn to skip. `/build` is where the full
-picture, warnings included, gets reported.
+The hook speaks in single lines. When it **rebuilds**, it says so — one short
+line naming the output and slide count — because a silent successful build is
+indistinguishable from a hook that never ran, and a mechanism nobody can see
+working is a mechanism nobody trusts. When a **turn changed nothing**, it prints
+nothing, so quiet turns stay quiet. When the deck has **errors**, it names the
+count and points at `--lint`, rather than letting a deck break and stay broken
+until someone runs `/build`.
+
+Warnings stay out of the automatic path: `orphaned-asset` fires legitimately on
+every turn while media is being produced, and output that nags every turn is
+output people learn to skip. `/build` is where the full picture, warnings
+included, gets reported — and because the hook keeps the render current, `/build`
+is the deliberate publish-and-verify step rather than part of the authoring loop.
 
 ### Brand kit — a directory contract, not a skill
 Scripts can't consume a skill and a config file can't reference one, so a kit
@@ -780,8 +813,9 @@ Resolved 2026-07-25 (Q&A while importing the docs into the deckard repo):
   one parser, two consumers (§5.5).
 - **`deckard.json` starting shape** ✔ — flat, all fields optional with
   defaults (§8); schema finalized at M2.
-- **Marp CLI pinned** ✔ — constant in `build.mjs`, `marpVersion` override in
-  `deckard.json`; concrete version chosen at M4 (§3 Phase 4).
+- **Marp CLI pinned** ✔ — concrete version chosen at M4 (§3 Phase 4).
+  *Superseded 2026-07-26 on how it is obtained: located, not fetched — see
+  below.*
 - **Node ≥ 22 baseline** ✔ — `node --test` + `fs.globSync`, guarded entry
   helper (§8).
 - **Prior-project materials** ✔ — the user supplies originals on request
@@ -828,6 +862,21 @@ Resolved 2026-07-26 (while landing M3):
   entirely, which costs the reader the prose explaining *why*. Whichever runs,
   run it in CI and assert a clean working tree, so a stale `plugin/` cannot
   ship or be served to `--plugin-dir`.
+
+Resolved 2026-07-26 (while landing M4):
+- **Marp is located, never fetched** ✔ — supersedes running the renderer through
+  `npx` (§3 Phase 4). Resolution order is `marpCommand` → `PATH` →
+  `node_modules/.bin/marp`. `npx -y` would fetch and execute ~160 packages
+  (131 MB measured) behind a grant that reads as "run one script", with npm's
+  confirmation suppressed, and would fail offline — the §8 supply-chain
+  objection arriving through a side door. The `marpVersion` config key is
+  replaced by `marpCommand`; 4.5.0 becomes the version Deckard is *verified
+  against* rather than one it installs, and a mismatch is a note in the report,
+  not a refusal.
+- **Installing tooling is the user's decision** ✔ — the missing-renderer message
+  asks for an install and tells the agent not to run one unilaterally unless the
+  user has already endorsed that in the session. An agent that silently installs
+  160 packages is the surprise worth designing out.
 
 Resolved 2026-07-26 (while landing M3):
 - **A shared background skill** ✔ — `skills/pipeline/SKILL.md`, loaded first by

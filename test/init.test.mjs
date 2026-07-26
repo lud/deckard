@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 const INIT = fileURLToPath(new URL('../plugin/scripts/init.mjs', import.meta.url))
 
 /** Keys `deckard.json` accepts (framework.md §8). */
-const CONFIG_KEYS = new Set(['brandKit', 'source', 'captureTool', 'outDir', 'publish', 'marpVersion'])
+const CONFIG_KEYS = new Set(['brandKit', 'source', 'captureTool', 'outDir', 'publish', 'marpCommand'])
 
 function emptyProject() {
   return mkdtempSync(join(tmpdir(), 'deckard-init-'))

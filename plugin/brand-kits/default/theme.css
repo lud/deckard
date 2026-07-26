@@ -1,0 +1,52 @@
+/* @theme deckard-default */
+
+/*
+ * The neutral kit: readable defaults with no branding, so a deck builds before
+ * anyone has a theme. Fonts referenced with url() below are inlined as data
+ * URIs at publish time, from this directory's fonts/ folder.
+ */
+
+@import 'default';
+
+section {
+  font-size: 26px;
+  padding: 60px 70px;
+}
+
+section.lead {
+  justify-content: center;
+  text-align: center;
+}
+
+section.lead h1 {
+  font-size: 2.1em;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+section > :last-child {
+  margin-bottom: 0;
+}
+
+code {
+  font-size: 0.85em;
+}
+
+pre {
+  font-size: 0.8em;
+  line-height: 1.4;
+}
+
+table {
+  font-size: 0.85em;
+}
+
+img {
+  display: block;
+  margin-inline: auto;
+}

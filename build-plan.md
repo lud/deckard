@@ -7,9 +7,10 @@ checkboxes as work lands.
 
 **Where the code lives:** its own repo at `~/src/deckard` — this repo, which
 also carries these two docs. Some milestones adapt material from a prior
-project the user keeps privately: original build/publish/font-embed shell
-scripts (M4), a prior media skill and VHS tapes (M6), the WTTJ brand styles
-(M8). **Ask the user** for an original when a milestone needs one; anything
+project the user keeps privately: a prior media skill and VHS tapes (M6), the
+WTTJ brand styles (M8). M4's build/publish/font-embed scripts were **written
+fresh in JS** — the originals turned out to be Python, so nothing was
+portable. **Ask the user** for an original when a milestone needs one; anything
 supplied is snapshot-copied in — runtime, tests, and CI reference only this
 repo. Scrub rule: no WTTJ-branded material (theme, fonts, logos) lands in
 this open-source repo; brand material goes only into the private kit dir at
@@ -197,25 +198,61 @@ framework.md:
 
 ## M4 — Build & publish (`/deck:build`)
 
-- [ ] `scripts/build.mjs` — run the transform, then Marp at the **pinned
-      version** (`npx @marp-team/marp-cli@4.5.0` — verified end-to-end, §3
-      Phase 4; a constant in `build.mjs`, overridable via `marpVersion`
-      in `deckard.json`) on `.build/slides.md` → `slides.html`, using the
-      configured brand kit's `theme.css`.
-- [ ] `scripts/embed-fonts.mjs` — base64 `@font-face` between markers in the
-      theme, sourced from the kit's `fonts/`. The user can supply a prior
-      shell-script original to port — ask for it.
-- [ ] `scripts/publish.mjs` — literal asset-path → data-URI substitution
-      (never a re-parse of rendered output). The user can supply a prior
-      shell-script original to port — ask for it.
-- [ ] `skills/build/SKILL.md` — runs lint + build + publish, reports
-      human-readably (lint findings, output paths, sizes).
-- [ ] Verification: build the kitchen-sink fixture and review per the §8
-      habit — export representative slide PNGs, Read them, check presenter
-      notes in Marp's presenter view.
+- [x] `scripts/build.mjs` — run the transform, then Marp on `.build/slides.md`
+      → `slides.html`, using the configured brand kit's `theme.css`. The
+      renderer is **located, never fetched** (`lib/marp.mjs`: `marpCommand` →
+      `PATH` → `node_modules/.bin/marp`), which replaced the planned
+      `npx @marp-team/marp-cli@4.5.0`: measured, that fetches 163 packages /
+      131 MB behind a grant reading "run one script", with npm's confirmation
+      suppressed by `-y`, and fails offline. 4.5.0 is now the version Deckard
+      is *verified against*; a mismatch is a note, not a refusal.
+- [x] `scripts/embed-fonts.mjs` — base64 fonts into the theme, sourced from
+      the kit's `fonts/`. **Written fresh in JS** (the prior originals were
+      Python, so there was nothing to port). It inlines the `url()` references
+      a kit author already wrote, rather than synthesising `@font-face` rules
+      between markers: the kit keeps control of family names, weights and
+      `unicode-range`, and no filename convention has to be invented.
+- [x] `scripts/publish.mjs` — literal asset-path → data-URI substitution
+      (never a re-parse of rendered output). Fresh JS, same reason. Paths are
+      substituted longest-first, so one asset path that prefixes another is
+      never partly replaced.
+- [x] `skills/build/SKILL.md` — runs lint + build + publish, reports
+      human-readably (lint findings, output paths, sizes). The model runs the
+      script with Bash rather than a bang command: a render takes tens of
+      seconds and can fail, and both want reporting the model controls.
+- [x] Verification: the kitchen-sink fixture builds end-to-end — lints clean,
+      renders, publishes self-contained. Confirmed in the output: no asset
+      path references survive, both assets are data URIs, presenter notes are
+      present, and the kit theme is applied. **Layout review is deferred to
+      the brand-kit phase**, where proper layouts get designed and the
+      exported-PNG habit has something to check against.
 
 **Done when:** `/deck:build` takes the kitchen-sink fixture to rendered,
 publishable HTML end-to-end.
+
+**Landed 2026-07-26.** `just check` green (62 tests). The fixture builds to a
+119 kB self-contained deck. Decisions worth carrying forward:
+
+- **Errors block the render** — a deck holding something the format cannot
+  express would produce output nobody should trust. `--no-lint` renders anyway
+  for work in progress, `--no-publish` stops after the local render.
+- **Build and publish write to different places.** The render lands in
+  `<outDir>/slides.html` (git-ignored, fast, relative asset paths intact);
+  publish writes `<publish>` at the project root, self-contained. That split is
+  what keeps the local loop fast and never re-parses rendered output.
+- **The kit is never mutated.** Fonts are embedded into `<outDir>/theme.css`,
+  a build copy, leaving the shipped kit pristine — so a build cannot dirty the
+  plugin's own `brand-kits/`.
+- **Two M8 items landed early because the build needs them:** kit resolution
+  (`lib/kit.mjs`, with errors naming what to fix) and a **minimal** neutral
+  `brand-kits/default/theme.css`. M8 still owns the real design work.
+- **Fixture assets are now real images**, not text stubs — a 480×900 PNG and a
+  160×36 GIF, generated so the bg-image slide has something to show. Lint only
+  checks existence, but the published deck embeds them, and the brand-kit phase
+  needs to see them.
+- The Marp render is deliberately **outside** the test suite: it downloads a
+  pinned CLI and drives a browser. Tests cover the gate, kit resolution, font
+  embedding and the publish substitution; the render is verified end-to-end.
 
 ## M5 — Autobuild hook
 
@@ -224,17 +261,29 @@ Needs M4's build entry point.
 - [ ] `scripts/autobuild.mjs` — exit fast when `deckard.json` absent; hash
       `presentation.md` + active theme against `.build/last-build.hash`;
       rebuild (build only, no publish) on change.
-- [ ] **Surface errors, and only errors** (decided 2026-07-26). A silent
-      auto-rebuild would let a deck break and stay broken until someone ran
-      `/deck:build`, so the hook reports **error**-severity findings — one
-      terse line naming the count and `--lint`, never a full report. It stays
-      **silent when clean**, which is the hook's whole point on a quiet turn.
+- [ ] **Report a rebuild in one short line, and report errors** (decided
+      2026-07-26). The line fires *only when a rebuild actually happened* —
+      something like `deckard: rebuilt .build/slides.html — 9 slides`. A silent
+      successful build is indistinguishable from a hook that never ran, which
+      makes the whole mechanism impossible to trust; one line per genuine
+      rebuild is the confirmation that costs nothing. **A turn that changed
+      nothing prints nothing**, so quiet turns stay quiet.
+      **Errors** are reported the same way: one terse line naming the count and
+      pointing at `--lint`, never a full report — otherwise a deck could break
+      and stay broken until someone ran `/deck:build`.
       **Warnings are deliberately excluded:** `orphaned-asset` fires
       constantly and legitimately while media is being produced, and a nag on
       every turn is how users learn to ignore output — the same reasoning that
       made it a warning to begin with (§5.5). A useful consequence: with
       warnings out of scope the hook can skip the orphan directory scan, so it
       does no filesystem walk beyond reading the source.
+- [ ] **The hook needs a renderer too.** It uses the same `lib/marp.mjs`
+      resolution, and when nothing is found it emits
+      `missingMarpMessage({ hook: true })` — which tells the model to locate a
+      Marp (after the *user* installs one, or with their endorsement) and record
+      the path in `deckard.json` as `marpCommand`, so every later turn finds it.
+      A hook that silently stopped rendering would be worse than one that says
+      why.
 - [ ] `hooks/hooks.json` — `Stop` event, `async: true`, sensible timeout.
 - [ ] Verify `async: true` on Stop hooks against the installed CLI (docs say
       supported as of 2026-07-24, incl. `asyncRewake`; confirm empirically
@@ -329,6 +378,40 @@ builds correctly under both.
 
 **Done when:** a colleague can install Deckard from the repo and reach a
 rendered deck with nothing but this repo and its README.
+
+## M10 — Refactor the larger modules toward a functional style
+
+Deliberately last: the shape of these modules is still being learned, and
+refactoring toward a style before the requirements settle optimises the wrong
+thing. By here the format, the lint rules and the build path have all stopped
+moving, so the remaining complexity is real complexity worth reshaping.
+
+- [ ] `lib/deck-parse.mjs` — the closure-based handlers mutate seven pieces of
+      loop state (`title`, `inSlides`, `fence`, `slide`, `section`, `stranded`,
+      `awaitingMetadata`). Reshape as an explicit state value threaded through
+      pure `(state, line) → state` steps, so each heading level becomes a
+      function that can be read and tested on its own.
+- [ ] `lib/deck-lint.mjs` — the rules are already independent; make that
+      structural. A list of `(deck, context) → Finding[]` rules, folded, so
+      adding a check means adding a function to a list and severity stays the
+      one lookup it already is.
+- [ ] `build.mjs` — separate deciding from doing: a pure function that turns
+      config + deck + resolved renderer into a plan of steps, and a thin driver
+      that performs them. The lint gate, the version note and the publish step
+      become inspectable without spawning anything.
+- [ ] Keep the shipped style plain: functions and plain data, no classes, no
+      dependencies, and no clever combinator layer that a reader has to learn
+      before they can audit the plugin (§8).
+
+**Safety net, which is the point of doing it here:** the golden file plus the
+fixtures pin the behaviour, and a differential run — old implementation vs new
+over every fixture and a set of adversarial inputs, comparing whole parse trees
+— is the check that catches what tests miss. That is exactly how the M3 handler
+extraction was verified (28 inputs, 0 mismatches), so the pattern is known to
+work here.
+
+**Done when:** `just check` is green, the golden file is byte-identical, and a
+differential over every fixture reports no mismatches.
 
 ---
 

@@ -145,7 +145,14 @@ media need ends as a produced asset or a precise directive.
 Flat, every field optional, and its presence marks the directory as a Deckard
 project. `brandKit` (bare name = a kit bundled with the plugin, path-like =
 relative to the project), `source` (default `presentation.md`), `outDir`
-(`.build`), `publish` (`slides.html`), `captureTool`, `marpVersion`.
+(`.build`), `publish` (`slides.html`), `captureTool`, and `marpCommand` — a
+path to a Marp CLI for when it is not on `PATH`.
+
+Deckard **locates** a Marp CLI rather than downloading one. If a build reports
+that none was found, relay its message: installing software is the user's
+decision, so ask them rather than installing it yourself, unless they have
+already endorsed installing tooling in this session. Once it exists, its path
+belongs in `marpCommand` so later builds and the autobuild hook find it too.
 
 A **brand kit** is a directory: `theme.css` (what the build uses), optional
 `fonts/`, and an optional `kit.md` of agent-facing styling directives — read
