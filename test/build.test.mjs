@@ -190,8 +190,6 @@ test('the missing-renderer message asks the user, and never installs silently', 
   assert.match(message, /marpCommand/, 'says where to record the path')
   assert.match(message, new RegExp(`@marp-team\\/marp-cli@${PINNED_MARP}`))
   assert.doesNotMatch(message, /npx/, 'fetching is not on the menu')
-
-  assert.match(missingMarpMessage({ hook: true }), /autobuild hook/, 'the hook gets its own tail')
 })
 
 test('a build with no renderer reports how to get one, and renders nothing', () => {

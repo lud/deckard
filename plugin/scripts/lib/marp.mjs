@@ -54,9 +54,8 @@ export function findMarp({ project, marpCommand }) {
  * What to tell the model when no renderer is available. Installing software is
  * the user's decision, so the wording asks for it rather than instructing the
  * agent to go ahead.
- * @param {{ hook?: boolean }} [options]
  */
-export function missingMarpMessage({ hook = false } = {}) {
+export function missingMarpMessage() {
   const lines = [
     `No Marp CLI found. Deckard renders with @marp-team/marp-cli (verified against ${PINNED_MARP}).`,
     '',
@@ -72,13 +71,6 @@ export function missingMarpMessage({ hook = false } = {}) {
     'deckard.json so every later build and the autobuild hook can find it:',
     '  { "marpCommand": "/path/to/marp" }',
   ]
-  if (hook) {
-    lines.push(
-      '',
-      'This came from the autobuild hook, so the deck was not re-rendered. Nothing',
-      'else is wrong with it: resolve the renderer and the next edit rebuilds.',
-    )
-  }
   return `${lines.join('\n')}\n`
 }
 

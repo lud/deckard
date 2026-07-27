@@ -7,15 +7,15 @@
 // stdout on exit 0 lands in the debug log and is never shown, so a bare
 // console.log here would be invisible.
 //
-// Both audiences are reachable, by different fields. `systemMessage` shows the
-// user one line, at the end of the turn. `additionalContext` reaches the model
-// at the start of the *next* turn — but only in its nested
-// `hookSpecificOutput` form; the top-level field of the same name is silently
-// ignored for Stop, which reads exactly like "the model cannot be told"
-// (measured both ways, 2026-07-27).
-//
-// So the user's line has to stand on its own — what happened and what to do —
-// while the model's copy carries the detail it would need to act on next turn.
+// The hook speaks to the user only. It could reach the model too
+// (`hookSpecificOutput.additionalContext` arrives at the start of the next
+// turn — measured 2026-07-27), but anything that wakes the model makes it end
+// another turn, which fires this hook again, and convergence then rests on a
+// fingerprint of files on disk that anything can touch: another hook, a
+// formatter, the build's own writes into the out dir. One vanished hash file
+// was enough to observe the unbounded form live. Staying user-only removes
+// that loop class by construction; the model learns about breakage from the
+// `--lint` habit the pipeline skill gives it, at the moment it can act.
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -24,21 +24,11 @@ import { CONFIG_FILE, readConfig } from './lib/config.mjs'
 import { isEntryPoint } from './lib/entry.mjs'
 import { severityOf } from './lib/deck-lint.mjs'
 import { resolveKit } from './lib/kit.mjs'
-import { PINNED_MARP, missingMarpMessage } from './lib/marp.mjs'
+import { PINNED_MARP } from './lib/marp.mjs'
 
 const HASH_FILE = 'last-build.hash'
 
-/**
- * `additionalContext` reaches the model only in its nested form; the top-level
- * field is silently ignored for Stop (measured 2026-07-27).
- * @typedef {{ systemMessage: string, hookSpecificOutput?: { hookEventName: 'Stop', additionalContext: string } }} HookOutput
- */
-
-/**
- * @param {string} additionalContext
- * @returns {{ hookEventName: 'Stop', additionalContext: string }}
- */
-const forTheModel = (additionalContext) => ({ hookEventName: 'Stop', additionalContext })
+/** @typedef {{ systemMessage: string }} HookOutput */
 
 /**
  * What the rendered deck depends on: the source, and the theme it is rendered
@@ -92,11 +82,9 @@ export function autobuild(cwd) {
   if (current === lastFingerprint(project, config.outDir)) return null
 
   // Recorded before the outcome is known, so the file marks the last *attempt*
-  // rather than the last success. This is what makes the loop converge:
-  // `additionalContext` continues the conversation, so a report that repeats
-  // while the deck stays broken wakes the model forever (observed 2026-07-27).
-  // With the attempt recorded, the next firing sees an unchanged fingerprint and
-  // says nothing at all.
+  // rather than the last success. An unchanged broken deck then stays silent —
+  // the report fires once per change, never once per turn — and nothing about
+  // an unchanged deck deserves a second render anyway.
   mkdirSync(join(project, config.outDir), { recursive: true })
   writeFileSync(join(project, config.outDir, HASH_FILE), `${current}\n`)
 
@@ -105,7 +93,6 @@ export function autobuild(cwd) {
   if (result.noRenderer) {
     return {
       systemMessage: `deckard: no Marp CLI found — install @marp-team/marp-cli@${PINNED_MARP}, or set "marpCommand" in ${CONFIG_FILE}`,
-      hookSpecificOutput: forTheModel(missingMarpMessage({ hook: true })),
     }
   }
 
@@ -116,12 +103,7 @@ export function autobuild(cwd) {
       result.errors === 1 && first
         ? `${config.source}:${first.line} ${first.code}`
         : `${result.errors} errors in ${config.source}`
-    return {
-      systemMessage: `deckard: ${detail} — run /deck:build for detail`,
-      hookSpecificOutput: forTheModel(
-        `The autobuild hook did not rebuild the deck, because ${config.source} has errors:\n\n${result.report}`,
-      ),
-    }
+    return { systemMessage: `deckard: ${detail} — run /deck:build for detail` }
   }
 
   const where = relative(project, result.html ?? '')

@@ -51,10 +51,10 @@ known-keys allowlist so the next typo fails loudly.
 
 ---
 
-## ⚠ Next up — bound the autobuild loop, before any further milestone
+## ✔ Autobuild loop bounded — resolved 2026-07-27
 
-**Start here.** M5 ships a hook that speaks to the model, and the only thing
-stopping it looping is that the fingerprint of an unchanged deck is stable.
+M5 shipped a hook that speaks to the model, and the only thing
+stopping it looping was that the fingerprint of an unchanged deck is stable.
 That is a weaker guarantee than it looks.
 
 The failure: `additionalContext` wakes the model, the model must produce output,
@@ -91,9 +91,20 @@ Two ways to resolve it, and the second is likely better on its own merits:
 turn *under any sequence of file changes* — demonstrated, not argued — or the
 model-facing channel is gone and the skills carry the `--lint` habit instead.
 
-Note for the interim: the hook only runs in sessions started with
-`--plugin-dir`, since Deckard is not installed as a plugin, so nothing runs
-unattended by default.
+**Landed 2026-07-27, the second way.** The hook emits `systemMessage` and
+nothing else — `forTheModel`, the `hookSpecificOutput` field, and
+`missingMarpMessage({ hook: true })` are gone, and a test asserts the hook's
+output has no key besides `systemMessage`, so the channel cannot quietly
+return. The loop class is removed by construction rather than bounded; no
+sequence of file changes can wake the model, because nothing the hook emits
+reaches it. The `--lint` habit was already in the pipeline skill (twice: the
+authoring rules and "who runs what"), which satisfies the other half of the
+done-condition. The attempt-marking fingerprint stays: it is what keeps the
+user's error line at once-per-change instead of once-per-turn, and an
+unchanged broken deck earns no second render. The missing-renderer case also
+collapses to the user's one-liner, which itself names the fix
+(`marpCommand` in `deckard.json`); the pipeline skill already tells the model
+how to handle a build that reports no renderer. `just check` green (77 tests).
 
 ---
 
@@ -373,9 +384,9 @@ one line to the user plus the full `marpCommand` instruction to the model.
   2026-07-27 by resuming a session and asking what it received). The top-level
   `additionalContext` field is accepted and silently dropped — which looked like
   proof that a finished turn cannot reach the model, and briefly got written
-  down as such. It was the wrong shape, not a closed door. So the user gets one
-  line and the model gets the findings, or the full instruction to locate a Marp
-  CLI and record `marpCommand`.
+  down as such. It was the wrong shape, not a closed door.
+  *Superseded 2026-07-27: the channel is deliberately unused — the hook is
+  user-only; see the resolved loop section above.*
 - **The hash records the last *attempt*, not the last success** — written before
   the build runs. That ordering is what makes the model-facing report converge:
   `additionalContext` wakes the model, which produces output, which ends a turn,

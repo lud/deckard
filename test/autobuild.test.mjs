@@ -73,7 +73,7 @@ test('an unresolvable kit still yields a fingerprint', () => {
   )
 })
 
-test('the model is told through the nested field, the only one delivered', () => {
+test('the hook speaks to the user only — waking the model is the loop class', () => {
   const dir = project({
     deck: ['# D', '', '## Slides', '', '### One', '<!--', 'media: done', '-->', '', '![x](output/gone.gif)'].join('\n'),
   })
@@ -82,31 +82,23 @@ test('the model is told through the nested field, the only one delivered', () =>
   assert.ok(output)
   assert.match(output.systemMessage, /^deckard: presentation\.md:10 missing-asset/)
 
-  // A top-level `additionalContext` is accepted and silently dropped for Stop;
-  // only hookSpecificOutput reaches the next turn (measured 2026-07-27).
-  assert.equal(
-    // @ts-expect-error — asserting the wrong shape is absent
-    output.additionalContext,
-    undefined,
-    'the top-level field would go nowhere, so it is not used',
-  )
-  assert.equal(output.hookSpecificOutput?.hookEventName, 'Stop')
-  assert.match(output.hookSpecificOutput?.additionalContext ?? '', /missing-asset/)
+  // Anything that reaches the model makes it end another turn, which fires
+  // this hook again — convergence would then rest on a fingerprint of files
+  // anything on disk can touch. `systemMessage` is the only field emitted, so
+  // the loop class is gone by construction, not bounded by an argument.
+  assert.deepEqual(Object.keys(output), ['systemMessage'], 'no model-facing field exists')
 })
 
-test('a broken deck reports once, so hook feedback cannot feed itself', () => {
+test('a broken deck reports once per change, not once per turn', () => {
   const dir = project({
     deck: ['# D', '', '## Slides', '', '### One', '<!--', 'media: done', '-->', '', '![x](output/gone.gif)'].join('\n'),
   })
 
-  const first = autobuild(dir)
-  assert.ok(first?.hookSpecificOutput, 'the model hears about it once')
+  assert.ok(autobuild(dir), 'the user hears about it once')
 
-  // `additionalContext` continues the conversation, so the model ends another
-  // turn, which fires this hook again. Reporting a second time is an unbounded
-  // loop — observed live before the fingerprint was recorded on attempt rather
-  // than on success.
-  assert.equal(autobuild(dir), null, 'an unchanged deck is silent, so the cycle stops')
+  // The fingerprint marks the attempt, so the same broken deck stays quiet —
+  // one line per change is a notification; one per turn is a nag.
+  assert.equal(autobuild(dir), null, 'an unchanged deck is silent')
 })
 
 test('a failed attempt still lets a later fix rebuild', () => {

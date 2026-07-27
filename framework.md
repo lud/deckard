@@ -758,31 +758,29 @@ nothing, so quiet turns stay quiet. When the deck has **errors**, it names the
 first one and points at `/build`, rather than letting a deck break and stay
 broken until someone runs it.
 
-**Both audiences are reachable, by different fields** (measured 2026-07-27):
-`systemMessage` shows the user one line as the turn ends, and
-`additionalContext` reaches the model at the start of the *next* turn — but
-**only in its nested form**:
+**The hook speaks to the user only** (decided 2026-07-27). The model *is*
+reachable from a Stop hook — `hookSpecificOutput.additionalContext` arrives at
+the start of the next turn, but only in that nested form; the top-level field
+of the same name is accepted and silently ignored, which presents exactly like
+"a finished turn has no model left to speak to" (measured both ways
+2026-07-27). Deckard deliberately leaves that channel unused. Waking the model
+makes it produce output, which ends a turn, which fires the hook again, so
+convergence would rest entirely on the fingerprint of an unchanged deck being
+stable — and the fingerprint hashes files on disk that **anything** can touch:
+another plugin's hook, a formatter, an editor writing on save, the build's own
+writes into `.build/`. Both failure forms were observed live before the
+decision: a broken deck reporting itself for three identical turns, and a
+`last-build.hash` that vanished between turns with nothing in the plugin able
+to explain it. An attempt-marking fingerprint (below) bounds the first form
+but not the class; emitting `systemMessage` alone removes the class **by
+construction**. The model still learns about breakage where it is actionable:
+the pipeline skill tells it to run `--lint` after editing a deck — the moment
+it can fix what it just broke — without anything having to wake it.
 
-```jsonc
-{ "hookSpecificOutput": { "hookEventName": "Stop", "additionalContext": "…" } }
-```
-
-The top-level `additionalContext` field is accepted and silently ignored for
-Stop, which presents exactly like "a finished turn has no model left to speak
-to" — a plausible-sounding conclusion that happens to be wrong. So the user gets
-the one-liner and the model gets the detail it would need to act: the lint
-findings, or the full instruction to locate a Marp CLI and record `marpCommand`.
-
-**Speaking to the model continues the conversation, so the report has to
-converge.** `additionalContext` does not merely attach context for later — it
-wakes the model, which by its nature produces output, which ends a turn, which
-fires this hook again. A broken deck therefore reported itself forever
-(observed 2026-07-27: three identical firings, ended by interrupting). The fix
-is one line of ordering: the fingerprint is recorded **before** the build runs,
-so it marks the last *attempt* rather than the last success. The next firing sees
-an unchanged deck and says nothing, which bounds the cycle at a single extra
-turn — the one where the model is told, which is the point. A hook that speaks
-to the model needs a convergence argument, not just a message.
+The fingerprint is still recorded **before** the build runs, marking the last
+*attempt* rather than the last success: an unchanged broken deck stays silent,
+so the user line fires once per change, never once per turn — and nothing
+about an unchanged broken deck deserves a second render anyway.
 
 **One consequence to be honest about: the hook reports once per change, not once
 per turn.** A line that scrolls past unnoticed does not come back, so the hook is
@@ -965,6 +963,13 @@ Resolved 2026-07-26 (while landing M1):
   for SKILL.md frontmatter, so descriptions can contain colons without the
   tests pretending to be a YAML parser.
 
-Still open: nothing blocking. Next step: scaffold §8 and write
-`plan-to-slides.mjs`, validated against the purpose-built kitchen-sink
-fixture (build plan M3).
+Resolved 2026-07-27:
+- **The autobuild hook is user-only** ✔ — the model-facing
+  `additionalContext` channel is removed rather than bounded (§8). Waking the
+  model ends a turn and refires the hook, so convergence rested on a
+  fingerprint of files anything on disk can touch; `systemMessage` alone
+  removes the loop class by construction. The model keeps the `--lint`-after-
+  editing habit via the pipeline skill, which is where breakage is actionable.
+
+Still open: nothing blocking. Next step: M6, `/deck:media` (build plan) —
+ask the user for the prior project's media skill as a reference.
