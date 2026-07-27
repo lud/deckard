@@ -25,6 +25,12 @@ The autobuild hook keeps the local render current as the deck is edited, which
 makes this command the deliberate publish-and-verify step rather than something
 to repeat during authoring.
 
+The hook reports each change **once**, and it suppresses warnings, so its line is
+a notification rather than a verdict on the deck. This command is the
+authoritative check: it re-lints from scratch, reports the warnings the hook
+leaves out, and publishes. Encourage the user to run it before sharing a deck,
+and whenever they want to know the deck is sound rather than assume it.
+
 **When errors stop the build**, the deck holds something the format cannot
 express, so nothing was rendered. Show each finding with its line and message,
 and offer to fix them — a missing asset usually means `/deck:media` has work

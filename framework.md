@@ -607,7 +607,17 @@ deckard/                       # own repo: ~/src/deckard — the dev root
 ```
 
 The phase skills carry `disable-model-invocation: true` (the phases are
-deliberate user-triggered gates), and skills pre-authorize their tooling with
+deliberate user-triggered gates). That gate holds only if the scripts behind it
+are not a way around it, so the division is by **effect, not by convenience**:
+the transform's read-only modes (`--lint`, `--status`) are the model's to run
+whenever they help — `/media` structurally depends on `--status` — while the
+phase actions stay the user's to trigger. `/build` renders *and publishes*, so a
+model running `build.mjs` because someone said "build the deck" in prose has
+walked around the gate. The shared skill therefore tells it to point at
+`/deck:build` instead, and notes that autobuild keeps the local render current
+in the meantime, so nothing is stale while the user decides.
+
+Skills pre-authorize their tooling with
 `allowed-tools` so builds don't prompt — `${CLAUDE_PLUGIN_ROOT}` expands there
 as it does in the body, so the grant names the exact command
 (`Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")`) rather than all of
@@ -715,13 +725,19 @@ per message). It no-ops without `deckard.json`, hashes `presentation.md` + the
 active theme against the last build, and re-renders only on change — quiet turns
 cost nothing.
 
-**Two things about hooks that had to be measured** (2026-07-26; the docs and the
-design's own assumption were both wrong):
+**Two things about hooks worth knowing** (2026-07-26):
 
-- **The entry shape.** A `Stop` array of hook objects — the flat form — is
-  accepted, validates, and **silently never fires**. What runs is the nested
-  group: `"Stop": [{ "hooks": [{ type, command, … }] }]`. Nothing reports the
-  difference, so the only symptom is a hook that does nothing.
+- **Configuration is three levels: event → matcher group → handler.** A `Stop`
+  group simply omits the matcher, giving
+  `"Stop": [{ "hooks": [{ type, command, … }] }]`. Flattening the group away —
+  putting handlers directly in the event array — is **accepted, validates, and
+  silently never fires**, which is the part worth remembering: nothing reports
+  the difference, so the only symptom is a hook that does nothing. The hooks
+  reference is clear about the three levels; the flat form was our own
+  misreading, not a documentation error.
+  The handler uses **exec form** (`"command": "node"`, `"args": [path]`), which
+  the reference recommends for plugin scripts: the path is an argument rather
+  than shell text, so a plugin root containing spaces cannot be re-tokenized.
 - **`async: true` does not survive a headless session.** When `claude -p`
   finishes a turn it exits, and the backgrounded hook is killed — even a script
   that only writes a file, because Node's startup loses the race a shell builtin
@@ -739,8 +755,42 @@ line naming the output and slide count — because a silent successful build is
 indistinguishable from a hook that never ran, and a mechanism nobody can see
 working is a mechanism nobody trusts. When a **turn changed nothing**, it prints
 nothing, so quiet turns stay quiet. When the deck has **errors**, it names the
-count and points at `--lint`, rather than letting a deck break and stay broken
-until someone runs `/build`.
+first one and points at `/build`, rather than letting a deck break and stay
+broken until someone runs it.
+
+**Both audiences are reachable, by different fields** (measured 2026-07-27):
+`systemMessage` shows the user one line as the turn ends, and
+`additionalContext` reaches the model at the start of the *next* turn — but
+**only in its nested form**:
+
+```jsonc
+{ "hookSpecificOutput": { "hookEventName": "Stop", "additionalContext": "…" } }
+```
+
+The top-level `additionalContext` field is accepted and silently ignored for
+Stop, which presents exactly like "a finished turn has no model left to speak
+to" — a plausible-sounding conclusion that happens to be wrong. So the user gets
+the one-liner and the model gets the detail it would need to act: the lint
+findings, or the full instruction to locate a Marp CLI and record `marpCommand`.
+
+**Speaking to the model continues the conversation, so the report has to
+converge.** `additionalContext` does not merely attach context for later — it
+wakes the model, which by its nature produces output, which ends a turn, which
+fires this hook again. A broken deck therefore reported itself forever
+(observed 2026-07-27: three identical firings, ended by interrupting). The fix
+is one line of ordering: the fingerprint is recorded **before** the build runs,
+so it marks the last *attempt* rather than the last success. The next firing sees
+an unchanged deck and says nothing, which bounds the cycle at a single extra
+turn — the one where the model is told, which is the point. A hook that speaks
+to the model needs a convergence argument, not just a message.
+
+**One consequence to be honest about: the hook reports once per change, not once
+per turn.** A line that scrolls past unnoticed does not come back, so the hook is
+a *notification*, never the record of a deck's health. `/build` is the
+authoritative check — it re-lints from scratch, reports warnings the hook
+deliberately suppresses, and publishes. The skills say so, and a deck being
+prepared for an audience deserves an explicit build before it is shared
+regardless.
 
 Warnings stay out of the automatic path: `orphaned-asset` fires legitimately on
 every turn while media is being produced, and output that nags every turn is

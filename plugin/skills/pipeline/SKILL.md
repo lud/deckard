@@ -107,6 +107,18 @@ derive. Read state from here rather than by rereading the source: a session
 that inferred state from the text once concluded a resolved slide still needed
 media and started re-recording it.
 
+## Who runs what
+
+The five phases are **user-invoked gates**, which is why you cannot invoke them:
+`/deck:init`, `/deck:ideate`, `/deck:plan`, `/deck:media`, `/deck:build`. Asked
+to build or publish a deck, point the user at `/deck:build` rather than running
+the build script yourself — the phase is theirs to trigger, and the autobuild
+hook already keeps the local render current, so nothing is going stale while
+they decide.
+
+The transform's **read-only modes are yours** to run whenever they help:
+`--lint` after editing a deck, `--status` to read media state.
+
 ## Media states
 
 `media:` in a slide's metadata. A missing key means "not classified yet".

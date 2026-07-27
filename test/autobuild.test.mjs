@@ -73,17 +73,79 @@ test('an unresolvable kit still yields a fingerprint', () => {
   )
 })
 
+test('the model is told through the nested field, the only one delivered', () => {
+  const dir = project({
+    deck: ['# D', '', '## Slides', '', '### One', '<!--', 'media: done', '-->', '', '![x](output/gone.gif)'].join('\n'),
+  })
+
+  const output = autobuild(dir)
+  assert.ok(output)
+  assert.match(output.systemMessage, /^deckard: presentation\.md:10 missing-asset/)
+
+  // A top-level `additionalContext` is accepted and silently dropped for Stop;
+  // only hookSpecificOutput reaches the next turn (measured 2026-07-27).
+  assert.equal(
+    // @ts-expect-error — asserting the wrong shape is absent
+    output.additionalContext,
+    undefined,
+    'the top-level field would go nowhere, so it is not used',
+  )
+  assert.equal(output.hookSpecificOutput?.hookEventName, 'Stop')
+  assert.match(output.hookSpecificOutput?.additionalContext ?? '', /missing-asset/)
+})
+
+test('a broken deck reports once, so hook feedback cannot feed itself', () => {
+  const dir = project({
+    deck: ['# D', '', '## Slides', '', '### One', '<!--', 'media: done', '-->', '', '![x](output/gone.gif)'].join('\n'),
+  })
+
+  const first = autobuild(dir)
+  assert.ok(first?.hookSpecificOutput, 'the model hears about it once')
+
+  // `additionalContext` continues the conversation, so the model ends another
+  // turn, which fires this hook again. Reporting a second time is an unbounded
+  // loop — observed live before the fingerprint was recorded on attempt rather
+  // than on success.
+  assert.equal(autobuild(dir), null, 'an unchanged deck is silent, so the cycle stops')
+})
+
+test('a failed attempt still lets a later fix rebuild', () => {
+  const dir = project({
+    deck: ['# D', '', '## Slides', '', '### One', '<!--', 'media: done', '-->', '', '![x](output/gone.gif)'].join('\n'),
+  })
+  autobuild(dir)
+
+  writeFileSync(
+    join(dir, 'presentation.md'),
+    ['# D', '', '## Slides', '', '### One', '<!--', 'media: none', '-->', '', 'Fixed.'].join('\n'),
+  )
+
+  // Recording the attempt must not make a corrected deck look unchanged.
+  const after = fingerprint(dir, DEFAULTS)
+  assert.ok(after)
+  assert.notEqual(
+    after,
+    readFileSync(join(dir, DEFAULTS.outDir, 'last-build.hash'), 'utf8').trim(),
+    'the fix is a new fingerprint, so the next turn attempts it',
+  )
+})
+
 test('the hook manifest uses the shape the CLI actually honours', () => {
   const manifest = JSON.parse(
     readFileSync(new URL('../plugin/hooks/hooks.json', import.meta.url), 'utf8'),
   )
   const [group] = manifest.hooks.Stop
-  // Measured 2026-07-26: a flat entry array is accepted and silently never
-  // fires; the nested { hooks: [...] } group is what runs.
-  assert.ok(Array.isArray(group.hooks), 'Stop entries are wrapped in a group')
+  // Configuration is three levels — event, matcher group, handler — and a
+  // Stop group simply omits the matcher. Flattening it away is accepted and
+  // then silently never fires (measured 2026-07-26).
+  assert.ok(Array.isArray(group.hooks), 'the handler sits inside a matcher group')
   const [entry] = group.hooks
+
   assert.equal(entry.type, 'command')
-  assert.match(entry.command, /autobuild\.mjs/)
+  // Exec form: the path is an argument, so a plugin root containing spaces
+  // cannot be re-tokenized by a shell.
+  assert.equal(entry.command, 'node')
+  assert.deepEqual(entry.args, ['${CLAUDE_PLUGIN_ROOT}/scripts/autobuild.mjs'])
   assert.equal(entry.async, false, 'async hooks are killed when a headless session exits')
   assert.ok(entry.timeout > 0)
 })

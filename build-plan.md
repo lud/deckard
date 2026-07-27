@@ -51,6 +51,52 @@ known-keys allowlist so the next typo fails loudly.
 
 ---
 
+## ⚠ Next up — bound the autobuild loop, before any further milestone
+
+**Start here.** M5 ships a hook that speaks to the model, and the only thing
+stopping it looping is that the fingerprint of an unchanged deck is stable.
+That is a weaker guarantee than it looks.
+
+The failure: `additionalContext` wakes the model, the model must produce output,
+that output ends a turn, and the turn fires the hook again. Convergence rests
+entirely on the fingerprint not changing between firings — and the fingerprint is
+a hash of files on disk that **anything** can touch. Another plugin's hook, a
+formatter, an editor writing on save, a `.build/` cleaner, or a filesystem quirk
+is enough. Worse, the build itself writes into `.build/`, so any future coupling
+between what it writes and what the hash covers closes the cycle directly. The
+other session already saw one instance of the class: `last-build.hash` vanished
+between turns with nothing in the plugin able to explain it, which alone makes
+every later turn rebuild unconditionally.
+
+Unattended, this is the expensive kind of bug — a user who steps away for an hour
+comes back to a session that has been waking itself the whole time.
+
+Two ways to resolve it, and the second is likely better on its own merits:
+
+- **Find a genuinely safe loop breaker.** Candidates: read `stop_hook_active` from
+  the payload (undocumented, so it needs verifying first) and never address the
+  model on a turn a hook caused; or keep a per-session counter of consecutive
+  hook-caused firings and go user-only past a small N; or address the model only
+  when the previous firing did not. Each needs a real convergence argument, not a
+  plausible one — the last two attempts at this were both wrong.
+- **Stop reporting to the model from the hook at all** (recommended). The hook
+  becomes user-only: `systemMessage`, nothing else, and the loop class disappears
+  by construction rather than being bounded. The model then learns about breakage
+  where it is actually actionable — the shared skill already tells it to run
+  `--lint` after editing a deck, which is the moment it can fix what it just
+  broke, without anything having to wake it. Cheaper, simpler, and it keeps the
+  Stop hook doing what a turn-end notification is for.
+
+**Done when:** a deliberately broken deck cannot cause more than one extra model
+turn *under any sequence of file changes* — demonstrated, not argued — or the
+model-facing channel is gone and the skills carry the `--lint` habit instead.
+
+Note for the interim: the hook only runs in sessions started with
+`--plugin-dir`, since Deckard is not installed as a plugin, so nothing runs
+unattended by default.
+
+---
+
 ## M1 — Skeleton + dev harness
 
 Everything else needs a loadable plugin to iterate inside.
@@ -284,10 +330,16 @@ Needs M4's build entry point.
       the path in `deckard.json` as `marpCommand`, so every later turn finds it.
       A hook that silently stopped rendering would be worse than one that says
       why.
-- [x] `hooks/hooks.json` — `Stop` event, sensible timeout, and the **nested
-      entry shape**: `"Stop": [{ "hooks": [{ … }] }]`. The flat form the docs
-      show for plugin hooks validates cleanly and **silently never fires** —
-      measured, and the only symptom is a hook that does nothing.
+- [x] `hooks/hooks.json` — `Stop` event, sensible timeout, the **matcher-group
+      shape** (`"Stop": [{ "hooks": [{ … }] }]` — a Stop group just omits the
+      matcher), and **exec form** for the handler (`"command": "node"`,
+      `"args": [path]`), which the hooks reference recommends for plugin scripts
+      so a plugin root containing spaces is never re-tokenized by a shell.
+      Flattening the group away is accepted, validates, and **silently never
+      fires** — worth remembering, since nothing reports the difference. That
+      flat form was our own misreading of the reference, which is consistently
+      three levels (event → matcher group → handler); a summarised doc lookup
+      invented it, and reading the raw page corrected it.
 - [x] Verify `async` on Stop hooks empirically (§5.7 — docs have been wrong
       before). It is supported, and it **does not survive a headless session**:
       `claude -p` exits at the end of a turn and kills the backgrounded hook,
@@ -313,12 +365,28 @@ one line to the user plus the full `marpCommand` instruction to the model.
 
 - **Reporting goes through `systemMessage`** in JSON on stdout. A hook's plain
   stdout on exit 0 goes to the debug log and is never shown, so the obvious
-  `console.log` would have been invisible. `additionalContext` carries the
-  detail the *model* needs (lint findings, the install instruction) while the
-  user sees one line. The `systemMessage` display itself is UI-level and cannot
-  be confirmed from a headless run — it needs one interactive turn to see.
-- **The hash is written only after a successful render**, so a failed build
-  retries on the next turn instead of marking broken output as current.
+  `console.log` would have been invisible. Confirmed in a live session: it
+  displays as `Stop says: deckard: …`.
+- **The model is reachable too, but only through the nested field.**
+  `hookSpecificOutput: { hookEventName: "Stop", additionalContext }` arrives at
+  the start of the next turn (prefixed `Stop hook additional context:`, verified
+  2026-07-27 by resuming a session and asking what it received). The top-level
+  `additionalContext` field is accepted and silently dropped — which looked like
+  proof that a finished turn cannot reach the model, and briefly got written
+  down as such. It was the wrong shape, not a closed door. So the user gets one
+  line and the model gets the findings, or the full instruction to locate a Marp
+  CLI and record `marpCommand`.
+- **The hash records the last *attempt*, not the last success** — written before
+  the build runs. That ordering is what makes the model-facing report converge:
+  `additionalContext` wakes the model, which produces output, which ends a turn,
+  which fires the hook again, so a broken deck reported itself forever until the
+  user interrupted (observed 2026-07-27, three identical firings). With the
+  attempt recorded, the next firing sees an unchanged deck and stays silent,
+  bounding the cycle at the one turn where the model is told. It also settles the
+  earlier "does a broken deck nag every turn?" question: it reports once per
+  change. The cost is that a failed build marks its inputs as seen, so the retry
+  comes from the next edit rather than the next turn — which is the right trade,
+  since nothing about an unchanged broken deck deserves a second render.
 - **No `requireNode()` guard here**, unlike the other entry points: an old
   runtime should leave the session alone rather than complain once per turn.
   `/deck:build` is where that gets said.
