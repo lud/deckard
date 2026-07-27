@@ -6,7 +6,7 @@
 // `disable-model-invokation` — which would leave the invocation gate dead.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -90,6 +90,18 @@ test('the shared skill explains what a phase skill would otherwise restate', () 
   ]
   for (const [topic, pattern] of topics) {
     assert.match(body, pattern, `the shared skill covers ${topic}`)
+  }
+})
+
+test('every plugin path a skill mentions resolves in the shipped subtree', () => {
+  for (const skill of SKILLS) {
+    const source = readFileSync(join(pluginRoot, 'skills', skill, 'SKILL.md'), 'utf8')
+    for (const [, path] of source.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^\s`"')]+)/g)) {
+      assert.ok(
+        existsSync(join(pluginRoot, path)),
+        `${skill}: points at ${path}, which does not ship`,
+      )
+    }
   }
 })
 

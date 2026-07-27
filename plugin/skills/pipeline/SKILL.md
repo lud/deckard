@@ -187,6 +187,15 @@ A **brand kit** is a directory: `theme.css` (what the build uses), optional
 `fonts/`, and an optional `kit.md` of agent-facing styling directives — read
 `kit.md` when making styling decisions.
 
+## Craft guidance
+
+`${CLAUDE_PLUGIN_ROOT}/reference/presentation-craft.md` distills the
+presentation canon — Mayer's multimedia-learning principles,
+assertion-evidence structure, Duarte, Phillips, Tufte and others — into
+attributed rules, grouped by decision moment (narrative / slides / media).
+The phase skills read it at their decision points; reach for it yourself
+whenever slide quality is being discussed.
+
 ## Working conventions
 
 - **Iterate in a file, not in chat.** Every phase has one living document;

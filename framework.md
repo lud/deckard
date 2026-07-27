@@ -269,8 +269,13 @@ Kickoff template:
 > and the topics worth covering — don't write slides yet.
 
 ### Phase 2 — Plan (narrative, then slides)
-Consumes `notes.md` + `data/`, produces `presentation.md`. Two steps, in order —
-the first is what keeps the talk coherent:
+Consumes `notes.md` + `data/`, produces `presentation.md`. A conversation
+like ideate, with the balance shifted (decided 2026-07-27): the model holds
+the bird's-eye view of the whole corpus, so it **leads with concrete
+proposals** — the narrative presented and refined with the user before any
+slide is authored, the first draft offered as a proposal — and discussion
+refines from there. Two steps, in order — the first is what keeps the talk
+coherent:
 
 1. **Crystallize the narrative.** Ordering is **inherited from the user, then
    rationalized** — not invented. Name the arc (one prior deck's arc, as an
@@ -633,6 +638,8 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     notes.skeleton.md          # /ideate's brainstorm outline (§3 Phase 1)
     presentation.skeleton.md   # the §2 hierarchy, ready to fill
     deckard.skeleton.json      # project config, filled by init
+  reference/
+    presentation-craft.md      # distilled, attributed craft rules by decision moment (§9)
   brand-kits/
     default/                   # neutral bundled kit (directory contract below)
 ```
@@ -1035,6 +1042,21 @@ Resolved 2026-07-27:
   recorded message. Structurally loop-proof: nothing a hook emits can submit
   a user prompt. `hookSpecificOutput.additionalContext` delivery on
   UserPromptSubmit verified live in a headless session (2026-07-27).
+- **Craft knowledge ships as a distilled reference** ✔ —
+  `reference/presentation-craft.md`: attributed rules from the presentation
+  canon, grouped by decision moment (narrative / slides / media) so each
+  phase skill reads it where the advice is actionable; the ideate, plan and
+  media skills point at it. Evidence-based sources (Mayer's
+  multimedia-learning principles, Alley's assertion-evidence) anchor the
+  slide rules; narrative rules distill Anderson, Duarte, Minto, Heath.
+  Ideas distilled with attribution, never copied (TEDx is CC BY-NC-ND); the
+  full source survey with licensing map lives in
+  `research/presentation-sources.md` at the repo root. Advice, not law: the
+  skills cite the rule and its evidence, and the user decides. The
+  narrative rules carry their own scope note: a sectioned deck (quarterly
+  results, a multi-project review) is a legitimate shape whose parts need
+  not relate — narrative is sprinkled where the material honestly carries
+  it, never forced.
 - **Media phase simplified; no capture tooling ships** ✔ — `/deck:media` is a
   discussion skill that decides what each slide *shows* (§3 Phase 3), not a
   production loop. The prior project's VHS lore enforced narrow choices on

@@ -515,21 +515,30 @@ located-never-fetched decision; it now describes the resolution order.
 
 Prompt-craft; §3 already contains the working prompts.
 
-- [ ] `skills/ideate/SKILL.md` — read all of `data/`, discussion protocol,
+- [x] `skills/ideate/SKILL.md` — read all of `data/`, discussion protocol,
       evidence-grounded topic tiers → `notes.md`; no slides, no timed agenda;
       re-run = delta assessment against `presentation.md` (additive vs
       directional, §3 P1).
-- [ ] `skills/plan/SKILL.md` — narrative first, then whole-set draft, then
+- [x] `skills/plan/SKILL.md` — narrative first, then whole-set draft, then
       one-slide-at-a-time iteration; pushes back if `notes.md` is thin;
       re-run = reconcile, report the diff; documents the source-format
       limitations to the authoring agent (§2.2 heading budget — title
       H3 → H1, content H4–H6 → H2–H4, nothing deeper; `deck:` sections;
-      inline-image-syntax-only).
+      inline-image-syntax-only; companion slides with optional caption).
 - [ ] Dry-run verification: toy `data/` folder (a survey CSV + a notes file),
       run ideate → plan → build end-to-end on a 5-slide throwaway deck.
 
 **Done when:** the toy project goes from `data/` to rendered HTML using only
 `/deck:*` commands.
+
+**Skills landed 2026-07-27** in simple form; the end-to-end dry run stays
+open (ideate is a conversation, so it wants a live session, not a headless
+one). Both deliberate gates verified live in a scaffolded scratch project:
+`/deck:plan` against skeleton notes pushed back to `/deck:ideate` naming
+what is missing and wrote nothing; `/deck:ideate` with an empty `data/`
+asked what material exists and where to put it, and authored no slides.
+`just check` green (85 tests — the phase-skill pointer and frontmatter
+tests cover both).
 
 ## M8 — Brand kits
 
@@ -625,6 +634,33 @@ work here.
 
 **Done when:** `just check` is green, the golden file is byte-identical, and a
 differential over every fixture reports no mismatches.
+
+## Knowledge packing — first pass landed 2026-07-27
+
+Presentation-craft knowledge ships in the plugin as
+`reference/presentation-craft.md`: distilled, attributed rules grouped by
+decision moment — narrative (throughline, what-is/what-could-be contrast,
+lead with the answer, SUCCESs takeaway, story, brevity), slides (one
+message per slide, assertion-evidence, redundancy, coherence, signaling,
+~6 objects, bullets-fragment-reasoning, slide-vs-document) and media
+(visuals prove, spatial contiguity, dark background) — plus a short list of
+free sources to hand the user. The ideate, plan and media skills read it at
+their decision points, framed as advice to cite in conversation, with the
+user deciding. A manifest test asserts every `${CLAUDE_PLUGIN_ROOT}` path a
+skill mentions resolves in the shipped subtree, so the pointer cannot go
+dead.
+
+The source survey behind it is `research/presentation-sources.md` (repo
+root, dev-only): the canon mapped (Phillips' four TEDx talks, Kapterev,
+Duarte, Reynolds, Tufte, Minto, Heath, Gallo, Anderson), the evidence-based
+bodies of work the slide rules rest on (Mayer's multimedia-learning
+principles; Alley's assertion-evidence, with free adoptable templates), and
+the licensing map (TEDx is CC BY-NC-ND: ideas distilled with attribution,
+content never copied).
+
+Deeper packing stays open for a later pass: Phillips' 42-technique book,
+per-source deep distillation, and possibly assertion-evidence templates as
+a starting layout for brand kits.
 
 ---
 

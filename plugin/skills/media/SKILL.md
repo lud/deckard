@@ -41,6 +41,11 @@ Work one or two slides at a time so each proposal gets a real answer; never
 classify the whole backlog in one silent pass, however obvious the answers
 seem.
 
+Ground proposals in `${CLAUDE_PLUGIN_ROOT}/reference/presentation-craft.md`
+(read once per session) — especially its slide and media sections: visuals
+prove rather than illustrate, words go next to what they describe, and a
+crowded slide splits into companions rather than shrinking.
+
 The proposal logic, in this order:
 
 1. **Code block first.** When the content is literally text — JSON, a
