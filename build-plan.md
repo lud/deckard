@@ -108,6 +108,51 @@ how to handle a build that reports no renderer. `just check` green (77 tests).
 
 ---
 
+## ✔ Prompt-time error relay — landed 2026-07-27
+
+Going user-only closed the loop but left the model unbriefed: it learned of a
+broken deck only if it happened to run `--lint`, or if the user pasted the
+hook's one-liner. The fix rides on the one event nothing a hook emits can
+cause — `UserPromptSubmit` — so the model is briefed without reopening the
+Stop channel.
+
+Design (the user's proposal, sharpened to lint-only freshness):
+
+- **`autobuild.mjs`** writes a flag file, `<outDir>/errors-pending`, on every
+  failed attempt, and removes it on a successful build. The flag is empty for
+  anything the relay can re-derive; it records the error message only for a
+  failure that would take a render to reproduce (a Marp crash, a build throw).
+- **`prompt-relay.mjs`** (a `UserPromptSubmit` hook) exits in two stat calls
+  when there is no `deckard.json` or no flag. Otherwise it consumes the flag
+  *first* — a crash cannot repeat the report — then re-checks everything
+  cheap: a fresh lint, kit resolution, renderer lookup. What it finds goes to
+  the model as `hookSpecificOutput.additionalContext`; a recorded message is
+  relayed only when all of that re-checks clean. It emits no `decision` and no
+  `systemMessage`: it briefs the model, never blocks a prompt, never
+  double-reports to the user. Rendering at prompt time was considered and
+  dropped — the model needs findings, not HTML, and the Stop hook rebuilds
+  after the fix anyway.
+- **Freshness is the point of the re-check**: a deck fixed between turns
+  produces silence, not a stale alarm; a briefing happens once per breakage,
+  not once per prompt.
+- **Loop-proofness is structural, not argued**: the relay can only fire on a
+  user-submitted prompt, so its bound — one injection per prompt — holds
+  under any sequence of file changes, symlinked sources included. No
+  fingerprint convergence argument is needed, which is what the two wrong
+  attempts at one earned.
+
+Verified: 85 tests green (`just check`), including consume-on-delivery, the
+fixed-deck silence, the no-renderer report on a clean lint (the case lint
+alone would miss), and flag lifecycle through a real `autobuild()` run against
+a stub renderer. Delivery confirmed live: a headless session in a flagged
+scratch project quoted the injected context verbatim — for UserPromptSubmit
+the documented nested form is the real one. Cost: a second gated ~30 ms spawn
+per prompt wherever the plugin is enabled. A root `README.md` now documents
+enabling/disabling the plugin on the fly, since the hooks run everywhere the
+plugin is enabled.
+
+---
+
 ## M1 — Skeleton + dev harness
 
 Everything else needs a loadable plugin to iterate inside.

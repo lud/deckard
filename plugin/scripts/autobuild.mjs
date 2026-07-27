@@ -12,16 +12,17 @@
 // turn — measured 2026-07-27), but anything that wakes the model makes it end
 // another turn, which fires this hook again, and convergence then rests on a
 // fingerprint of files on disk that anything can touch: another hook, a
-// formatter, the build's own writes into the out dir. One vanished hash file
-// was enough to observe the unbounded form live. Staying user-only removes
-// that loop class by construction; the model learns about breakage from the
-// `--lint` habit the pipeline skill gives it, at the moment it can act.
+// formatter, the build's own writes into the out dir. Staying user-only
+// removes that loop class by construction. The model is briefed instead by
+// prompt-relay.mjs at the next user prompt — a channel that cannot end a turn
+// — via the flag this hook leaves on a failed attempt and clears on success.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { build } from './build.mjs'
 import { CONFIG_FILE, readConfig } from './lib/config.mjs'
 import { isEntryPoint } from './lib/entry.mjs'
+import { FLAG_FILE, cwdFromStdin } from './lib/hooks.mjs'
 import { severityOf } from './lib/deck-lint.mjs'
 import { resolveKit } from './lib/kit.mjs'
 import { PINNED_MARP } from './lib/marp.mjs'
@@ -88,9 +89,23 @@ export function autobuild(cwd) {
   mkdirSync(join(project, config.outDir), { recursive: true })
   writeFileSync(join(project, config.outDir, HASH_FILE), `${current}\n`)
 
-  const result = build({ project, skipPublish: true, warnings: false })
+  // The flag is what tells prompt-relay.mjs there is something to brief the
+  // model on. It stays empty when the relay can re-derive the facts fresh
+  // (lint, kit, renderer); it records the message only for a failure that
+  // would take a render to reproduce.
+  const flag = join(project, config.outDir, FLAG_FILE)
+
+  let result
+  try {
+    result = build({ project, skipPublish: true, warnings: false })
+  } catch (error) {
+    const message = /** @type {Error} */ (error).message
+    writeFileSync(flag, `${message}\n`)
+    return { systemMessage: `deckard: autobuild failed — ${message}` }
+  }
 
   if (result.noRenderer) {
+    writeFileSync(flag, '')
     return {
       systemMessage: `deckard: no Marp CLI found — install @marp-team/marp-cli@${PINNED_MARP}, or set "marpCommand" in ${CONFIG_FILE}`,
     }
@@ -103,23 +118,13 @@ export function autobuild(cwd) {
       result.errors === 1 && first
         ? `${config.source}:${first.line} ${first.code}`
         : `${result.errors} errors in ${config.source}`
+    writeFileSync(flag, '')
     return { systemMessage: `deckard: ${detail} — run /deck:build for detail` }
   }
 
+  rmSync(flag, { force: true })
   const where = relative(project, result.html ?? '')
   return { systemMessage: `deckard: rebuilt ${where} — ${result.slides} slides` }
-}
-
-/** Stop hooks receive their JSON on stdin; `cwd` is the project. */
-function cwdFromStdin() {
-  try {
-    const input = readFileSync(0, 'utf8')
-    const parsed = JSON.parse(input)
-    if (typeof parsed?.cwd === 'string') return parsed.cwd
-  } catch {
-    // No stdin, or not JSON: the process cwd is the next best answer.
-  }
-  return process.cwd()
 }
 
 if (isEntryPoint(import.meta.url)) {

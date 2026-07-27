@@ -585,16 +585,18 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     media/SKILL.md             # state-driven loop (§3 P3); fixes 5.2–5.4
     media/capture-vhs.md       # fix 5.4, VHS lore — loaded on demand from the skill
     build/SKILL.md             # explicit build+publish: lint, render, report
-  hooks/hooks.json             # Stop event, async: true → scripts/autobuild.mjs
+  hooks/hooks.json             # Stop → autobuild.mjs; UserPromptSubmit → prompt-relay.mjs (§8)
   scripts/                     # all zero-dep Node, no install step
     lib/entry.mjs              # Node ≥ 22 guard + isEntryPoint (CLI or import)
     lib/config.mjs             # deckard.json + defaults, for every script
+    lib/hooks.mjs              # shared by the two hooks: flag file name, stdin payload
     lib/deck-parse.mjs         # THE §2 parser — line-based, fence-aware
     lib/deck-emit.mjs          # parse tree → Marp (§4)
     lib/deck-lint.mjs          # fix 5.5, over the same parse tree
     init.mjs                   # idempotent: data/, skeleton docs, deckard.json
     plan-to-slides.mjs         # presentation.md → .build/slides.md (§4); --lint = fix 5.5; --status = media-state JSON for /media
     autobuild.mjs              # exits fast unless deckard.json present + source changed
+    prompt-relay.mjs           # UserPromptSubmit: briefs the model on a failed autobuild (§8)
     build.mjs  publish.mjs  embed-fonts.mjs
     regenerate-media.mjs       # auto-discovering capture runner (fix 5.6)
   templates/
@@ -773,14 +775,37 @@ decision: a broken deck reporting itself for three identical turns, and a
 `last-build.hash` that vanished between turns with nothing in the plugin able
 to explain it. An attempt-marking fingerprint (below) bounds the first form
 but not the class; emitting `systemMessage` alone removes the class **by
-construction**. The model still learns about breakage where it is actionable:
-the pipeline skill tells it to run `--lint` after editing a deck — the moment
-it can fix what it just broke — without anything having to wake it.
+construction**. The model keeps the `--lint`-after-editing habit via the
+pipeline skill, and it is also *briefed* about a failed autobuild — through
+the prompt-time relay below, a channel that cannot loop.
 
 The fingerprint is still recorded **before** the build runs, marking the last
 *attempt* rather than the last success: an unchanged broken deck stays silent,
 so the user line fires once per change, never once per turn — and nothing
 about an unchanged broken deck deserves a second render anyway.
+
+**The prompt-time relay** (added 2026-07-27) is the model-facing half. A
+failed build attempt leaves a flag file (`<outDir>/errors-pending`) that a
+successful build removes; the `UserPromptSubmit` hook (`prompt-relay.mjs`)
+looks for it when the user next submits a prompt — the fast path in every
+other case is two stat calls. Finding it, the relay consumes the flag *first*
+(a crash cannot repeat the report), then re-checks everything cheap — lint,
+kit resolution, renderer lookup — and injects what it finds as
+`hookSpecificOutput.additionalContext` (the documented UserPromptSubmit
+channel; delivery verified live in a headless session, 2026-07-27). Fresh
+checks mean a deck fixed between turns produces silence rather than a stale
+alarm; only a failure that would take a render to reproduce (a Marp crash) is
+relayed verbatim from the message the Stop hook recorded in the flag. The
+relay emits nothing else — no `decision`, no `systemMessage` — so it cannot
+block a prompt or double-report to the user.
+
+Why this cannot loop where the Stop channel could: `UserPromptSubmit` fires
+only when the user submits a prompt, and nothing a hook emits can cause one.
+The bound — at most one injection per user prompt — is structural, holding
+under any sequence of file changes (a source symlinked into the build output
+included), with no convergence argument about fingerprints required. The cost
+is a second gated ~30 ms Node spawn per prompt, wherever the plugin is
+enabled; the lint re-check runs only when the flag exists.
 
 **One consequence to be honest about: the hook reports once per change, not once
 per turn.** A line that scrolls past unnoticed does not come back, so the hook is
@@ -970,6 +995,17 @@ Resolved 2026-07-27:
   fingerprint of files anything on disk can touch; `systemMessage` alone
   removes the loop class by construction. The model keeps the `--lint`-after-
   editing habit via the pipeline skill, which is where breakage is actionable.
+  *Amended same day: the model is briefed after all, at prompt time — next
+  entry.*
+- **Prompt-time error relay** ✔ — the model-facing half rides on
+  `UserPromptSubmit` (`prompt-relay.mjs`, §8): the Stop hook flags a failed
+  attempt in `<outDir>/errors-pending` and clears it on success; the relay
+  consumes the flag and re-checks lint / kit / renderer *fresh*, so the model
+  is briefed with the deck's current state as its turn starts — a deck fixed
+  between turns yields silence, and only a render crash is relayed from the
+  recorded message. Structurally loop-proof: nothing a hook emits can submit
+  a user prompt. `hookSpecificOutput.additionalContext` delivery on
+  UserPromptSubmit verified live in a headless session (2026-07-27).
 
 Still open: nothing blocking. Next step: M6, `/deck:media` (build plan) —
 ask the user for the prior project's media skill as a reference.

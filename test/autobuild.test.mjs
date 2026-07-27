@@ -140,4 +140,14 @@ test('the hook manifest uses the shape the CLI actually honours', () => {
   assert.deepEqual(entry.args, ['${CLAUDE_PLUGIN_ROOT}/scripts/autobuild.mjs'])
   assert.equal(entry.async, false, 'async hooks are killed when a headless session exits')
   assert.ok(entry.timeout > 0)
+
+  // The model-facing half rides on UserPromptSubmit — the one event nothing
+  // a hook emits can cause — in the same three-level, exec-form shape.
+  const [promptGroup] = manifest.hooks.UserPromptSubmit
+  assert.ok(Array.isArray(promptGroup.hooks), 'the handler sits inside a matcher group')
+  const [relayEntry] = promptGroup.hooks
+  assert.equal(relayEntry.type, 'command')
+  assert.equal(relayEntry.command, 'node')
+  assert.deepEqual(relayEntry.args, ['${CLAUDE_PLUGIN_ROOT}/scripts/prompt-relay.mjs'])
+  assert.equal(relayEntry.async, false)
 })

@@ -119,6 +119,14 @@ they decide.
 The transform's **read-only modes are yours** to run whenever they help:
 `--lint` after editing a deck, `--status` to read media state.
 
+When an automatic rebuild fails, the user gets one line from the hook at the
+end of the turn, and **you** get the detail with the next user prompt: a hook
+injects additional context carrying a fresh lint report, a brand-kit or
+renderer problem, or the recorded build failure. It is re-checked at the
+moment of injection, so treat it as the deck's current state and address it
+as part of your turn. It arrives once per breakage — if you need the picture
+again later, run `--lint` yourself.
+
 ## Media states
 
 `media:` in a slide's metadata. A missing key means "not classified yet".
