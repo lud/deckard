@@ -67,6 +67,12 @@ Rules worth holding in mind while authoring:
   through to Marp verbatim, which is how layout needs are met.
 - Metadata keys: `media`, `media-type`, `layout`, and a repeatable `marp:` that
   carries any raw Marp directive (`marp: transition: fade`).
+- **Slide titles may repeat.** A *companion slide* gives media its own room:
+  the info slide keeps its content with `media: none`, and one or more
+  neighbouring slides with the same title carry the media in their body. A
+  companion's title may extend the shared title with a caption naming what
+  it shows: `### <title> – <caption>`. Each companion is its own slide to
+  the parser, lint and `--status`.
 
 Humans hand-edit this file, so the transform reports anything it cannot express
 rather than dropping it. Run `--lint` after editing.
@@ -156,8 +162,11 @@ media need ends as a produced asset or a precise directive.
 
 1. **Inline text or code** — when the content *is* text (JSON, a config, a
    directory tree), a fenced code block beats a screenshot. Check this first.
-2. **Reproducible capture** — a scriptable recording, VHS by default, of a
-   terminal or TUI.
+2. **Produced asset** — a recording, export or diagram made by tooling. The
+   tool is the project's business (`captureTool` in the config records the
+   preference); Deckard ships none, and assets are produced outside the
+   plugin — never automatically, and never re-recorded without the user
+   deciding to.
 3. **Manual handoff** — anything only a person can capture.
 
 ## Project config — `deckard.json`

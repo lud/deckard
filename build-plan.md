@@ -7,8 +7,8 @@ checkboxes as work lands.
 
 **Where the code lives:** its own repo at `~/src/deckard` — this repo, which
 also carries these two docs. Some milestones adapt material from a prior
-project the user keeps privately: a prior media skill and VHS tapes (M6), the
-WTTJ brand styles (M8). M4's build/publish/font-embed scripts were **written
+project the user keeps privately: the WTTJ brand styles (M8) — M6 was
+reshaped to adapt nothing (see its section). M4's build/publish/font-embed scripts were **written
 fresh in JS** — the originals turned out to be Python, so nothing was
 portable. **Ask the user** for an original when a milestone needs one; anything
 supplied is snapshot-copied in — runtime, tests, and CI reference only this
@@ -449,30 +449,67 @@ one line to the user plus the full `marpCommand` instruction to the model.
 
 ## M6 — `/deck:media`
 
-Generalizes a media skill from the prior project — the user can supply the
-original as a reference; ask for it.
+**Reshaped 2026-07-27, before implementation** (framework.md §3 Phase 3, §9).
+The original plan generalized the prior project's VHS-centric loop; the user
+cut that back hard: the VHS history enforced narrow choices on user content,
+rendering will be a separate private skill, and production/regeneration must
+never be automatic — a hooked or scheduled re-run is slow and re-recording
+Claude demos burns tokens on every take. Dropped outright:
+`skills/media/capture-vhs.md`, `scripts/regenerate-media.mjs`, `common.tape`
+(and with them the ask-for-the-prior-originals step). The VHS lore stays
+recorded in framework.md §5.4 for the future rendering skill.
 
-- [ ] `skills/media/SKILL.md` — state-driven per §3 P3: backlog report first
-      (five buckets: missing = key absent / pending / handoff / none / done,
-      read via the transform's `--status` JSON mode — never re-parsed in
-      prose); then work items until told to stop. Args: none = status +
-      proceed, `status` = report only, slide title = that slide.
-- [ ] Three-way classification (§2.4) with the "code block before screenshot"
-      check; explicit `media: done | pending | handoff | none` updates
-      (`handoff` set explicitly, never inferred from a capture directive);
-      manual-handoff emits a precise capture directive into the slide's
-      `deck: Media` section.
-- [ ] `skills/media/capture-vhs.md` — the §5.4 VHS lore, linked on demand.
-- [ ] `scripts/regenerate-media.mjs` — glob `blueprints/**/*.tape` (fix 5.6,
-      `fs.globSync`), run each; no manual list.
-- [ ] `common.tape` — the default VHS look; the user can supply a prior
-      tape as a starting point (ask). Decide its home then (`templates/` vs
-      next to `skills/media/`).
-- [ ] Verification: on the fixture, flip one slide to `media: pending` and
-      run the loop; confirm it never reopens a `done` slide (§5.2 scenario).
+What `/deck:media` is instead: the phase that decides what each slide
+*shows*, in conversation with the user — ideate/plan already decided what it
+*says*.
 
-**Done when:** the §5.2 dead-end scenario (re-opening a resolved slide) is
-demonstrably impossible and the status report matches the fixture's states.
+- [x] `skills/media/SKILL.md` — backlog report first (five buckets read via
+      the transform's `--status` JSON mode, never re-parsed from prose;
+      `done`/`none` are closed and stay closed; `handoff` explicit, never
+      inferred). Args: none = status + proceed, `status` = report only,
+      slide title = that slide. Then slide by slide with the user: the
+      code-block-first check (§2.4), what would illustrate the point,
+      classification, placement — and every decision lands as an asset in
+      the body or a precise directive in `deck: Media`, never a vague TODO.
+      Production is user tooling: defer to the user's rendering skill/tool
+      when one exists, never fabricate, never re-record on the agent's own
+      initiative. Relaxed by design: keeps the focus on media, follows the
+      user's detours without protocol.
+- [x] The **companion slide** pattern documented where authoring happens
+      (pipeline skill + media skill): info slide keeps its content and takes
+      `media: none`; one or more same-titled neighbour slides carry the
+      media in their body, the title optionally extended with a caption of
+      what is shown (`### <title> – <caption>`); several companions are
+      fine. Verified structurally:
+      duplicate H3 titles parse, lint and bucket independently — no format
+      change needed.
+- [x] De-VHS the pipeline skill's "choosing how to produce media" wording
+      (tool named by the project's `captureTool`, produced outside the
+      plugin).
+- [x] Verification: `just check` green (the phase-skill pointer and
+      frontmatter tests now cover a real media skill), plus a live
+      `--plugin-dir` session on the kitchen-sink fixture: `/deck:media
+      status` reports buckets matching the fixture's states without touching
+      any closed slide.
+
+**Done when:** the status report matches the fixture's states, the skill's
+guidance makes the §5.2 dead end (reopening a resolved slide) a stated
+impossibility backed by `--status`, and nothing in the plugin produces or
+regenerates media on its own.
+
+**Landed 2026-07-27.** `just check` green (85 tests — no new scripts, so no
+new tests; the phase-skill pointer and frontmatter-allowlist tests now cover
+the real skill, and its `allowed-tools` grant names the transform exactly).
+Live on the kitchen-sink fixture: `/deck:media status` in a headless
+`--plugin-dir` session reported all nine slides in the right buckets —
+1 unclassified, 1 pending, 1 handoff, 4 none, 2 done — named the open
+slides' waiting-on (tooling vs the user), touched nothing, and pointed at
+the no-argument form for working the backlog. The companion-slide pattern
+needed no format change (duplicate H3 titles parse, lint and bucket
+independently) and is documented in the pipeline skill's authoring rules,
+the media skill, and framework.md §3 Phase 4. One drive-by fix: the build
+skill still said the first run "downloads the Marp CLI" — stale since M4's
+located-never-fetched decision; it now describes the resolution order.
 
 ## M7 — `/deck:ideate` + `/deck:plan`
 

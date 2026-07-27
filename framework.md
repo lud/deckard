@@ -216,10 +216,11 @@ no risk at all — Marp never sees it.
 The Media section describes *what to show*; the plugin classifies how to produce
 it but **mandates no specific tool**. Buckets:
 
-- **Reproducible capture** — scriptable terminal/CLI/TUI recording. VHS is the
-  documented default for this (with all the hard-won VHS knowledge in §5.4), but
-  the framework treats it as pluggable; another project might use a screen
-  recorder, asciinema, Playwright screenshots, etc.
+- **Produced asset** — a recording, export or diagram produced by tooling: a
+  screen recorder, VHS, asciinema, Playwright screenshots, a diagram renderer.
+  Which tool is entirely the project's business (`captureTool` in the config
+  records the preference, informationally); Deckard ships none and mandates
+  none — production happens outside the plugin (§3 Phase 3).
 - **Inline text or code** — when the content is literally text (JSON, a config,
   a directory tree), keep it as a fenced code block in the slide; no asset.
 - **Manual / hand-off** — real screenshots, live demos, annotated images: never
@@ -288,23 +289,49 @@ the working record. **Re-running `/plan`** after a direction change **reconciles
 rather than regenerates: keep untouched slides, revise/insert the affected ones,
 and report the diff to the user.
 
-### Phase 3 — Produce media (`/media`)
-State-driven, not session-bounded. The old "one unit of work per fresh session"
-rule was a token-economy workaround; the durable fix was always the explicit
-`media:` state (§5.2). The skill: **report the backlog first** — five buckets
+### Phase 3 — Decide media (`/media`)
+Ideate and plan settle what each slide *says*; this phase decides what it
+*shows* — a conversation with the user around the deck, not a production
+line (simplified 2026-07-27 from the prior project's capture-centric loop).
+State-driven, not session-bounded: **report the backlog first** — five buckets
 from the `media:` state (missing = key absent / pending / handoff / none /
-done; the first two are actionable by the agent, `handoff` waits on the human;
-the bookkeeping is the core value), states read via the transform's `--status`
-JSON mode (§5.5) — then work through items until told to stop. Arguments scope it: no args = status + proceed,
-`status` = report only, a slide title = just that one. A deck of cheap diagrams
-resolves in a single session; for heavy capture work the user resets the
-session when they see fit. Classification per §2.4, improvements in §5.2–§5.4.
+done; `handoff` waits on the human; the bookkeeping is the core value), states
+read via the transform's `--status` JSON mode (§5.5) — then go slide by slide
+*with the user*, propose-then-decide: the skill says what the slide argues
+and proposes how to show it (code-block rule first, §2.4) with a placement —
+inline or a **companion slide** (§3 Phase 4) — and the user decides before
+anything is recorded. The user knows what the deck does not: existing assets,
+planned live demos, what the audience has seen. Never classify the backlog in
+one silent pass. Arguments scope it: no args = status + proceed,
+`status` = report only, a slide title = just that one.
+
+**Producing assets is user tooling, outside the plugin.** Deckard mandates no
+capture tool and ships none; a dedicated rendering skill can exist separately
+(the user plans a private one). Production and regeneration are never
+automatic — no hook, no schedule: a re-run of a capture costs real time, and
+a Claude-demo recording burns tokens on every take, so nothing may re-record
+without a human deciding to. The skill's job ends at the decision: an asset
+placed in the body, or a precise directive recorded for whoever produces it.
+
+The skill stays **relaxed**: while active it keeps the focus on media, but
+when the user drifts to other edits it follows, lints after changes, and
+returns to the backlog when they do — never a rigid protocol in the way of
+ordinary agent use.
 
 ### Phase 4 — Build & publish
 Generate the deck and inline everything (§4). Layout conventions the user
 converged on: tall screenshots as `bg right/left:N% fit` asides; wide terminal
 gifs as capped inline images; when a slide is too dense, **duplicate it (keep the
-title)** rather than shrink text (Marp doesn't auto-shrink). Keep **build vs.
+title)** rather than shrink text (Marp doesn't auto-shrink). The same move is
+the **companion slide** for media (named 2026-07-27): big images and text don't
+share a slide well, so the info slide keeps its content and takes
+`media: none`, and one or more same-titled neighbours carry the media in their
+body instead — the repeated title is deliberate, reading as one topic across
+slides. A companion may extend the title with a **caption** naming what it
+shows (`### <title> – <caption>`), rendered as-is, so a topic with several
+companions stays navigable. The format needs nothing new for this: duplicate
+(or caption-extended) H3 titles parse,
+lint and bucket independently (each companion is its own slide in `--status`). Keep **build vs.
 publish** distinct: build = fast local render; publish = self-contained
 shareable HTML. Never re-run a document converter (pandoc, single-file-cli) over
 already-rendered Marp output — it re-parses and mangles Marp's player; use
@@ -439,8 +466,11 @@ VHS-reproducible / inline-text-or-code / manual-handoff (§2.4). For a technical
 audience, prefer a code block over a screenshot whenever content is literally
 text — check this *before* defaulting to a manual capture.
 
-### 5.4 Capture knowledge the skill carries pre-loaded (VHS reference)
-Documented in a `reference/` doc, not enforced. These cost multiple re-records:
+### 5.4 Capture knowledge (VHS lore — recorded, not shipped)
+*Scope changed 2026-07-27: the plugin ships no capture tooling and no VHS
+reference — media production is user tooling outside the plugin (§3 Phase 3).
+The lore stays recorded here for the standalone rendering skill the user plans
+separately; each item cost multiple re-records to learn:*
 - Wait on the prompt with `Wait@60s /^> ?$/`, never a fixed `Sleep`, for any
   latency-dependent step.
 - VHS matches `>` in its text grid though it *renders* `❯`; `+Screen` can match
@@ -483,7 +513,9 @@ heading).
 ### 5.6 Auto-discover captures
 The prior project's regeneration script used a manually-maintained tape list —
 "a tape left out is never regenerated." The regeneration script should glob
-the blueprints dir instead.
+the blueprints dir instead. *Superseded 2026-07-27: no regeneration tooling
+ships at all (§3 Phase 3) — the glob-not-list rule stands for whoever builds
+the separate rendering skill.*
 
 ### 5.7 Empirical over docs; never fabricate
 Docs were wrong repeatedly (statusline behavior, `settings.local.json`
@@ -582,8 +614,7 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     init/SKILL.md              # bang-command → scripts/init.mjs; deterministic scaffold
     ideate/SKILL.md            # discuss data/ → notes.md; re-run assesses delta (§3 P1)
     plan/SKILL.md              # notes.md + data/ → presentation.md; re-run reconciles
-    media/SKILL.md             # state-driven loop (§3 P3); fixes 5.2–5.4
-    media/capture-vhs.md       # fix 5.4, VHS lore — loaded on demand from the skill
+    media/SKILL.md             # decide what each slide shows (§3 P3); fix 5.2
     build/SKILL.md             # explicit build+publish: lint, render, report
   hooks/hooks.json             # Stop → autobuild.mjs; UserPromptSubmit → prompt-relay.mjs (§8)
   scripts/                     # all zero-dep Node, no install step
@@ -598,12 +629,10 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     autobuild.mjs              # exits fast unless deckard.json present + source changed
     prompt-relay.mjs           # UserPromptSubmit: briefs the model on a failed autobuild (§8)
     build.mjs  publish.mjs  embed-fonts.mjs
-    regenerate-media.mjs       # auto-discovering capture runner (fix 5.6)
   templates/
     notes.skeleton.md          # /ideate's brainstorm outline (§3 Phase 1)
     presentation.skeleton.md   # the §2 hierarchy, ready to fill
     deckard.skeleton.json      # project config, filled by init
-    common.tape                # default VHS look, for the VHS media path
   brand-kits/
     default/                   # neutral bundled kit (directory contract below)
 ```
@@ -1006,6 +1035,17 @@ Resolved 2026-07-27:
   recorded message. Structurally loop-proof: nothing a hook emits can submit
   a user prompt. `hookSpecificOutput.additionalContext` delivery on
   UserPromptSubmit verified live in a headless session (2026-07-27).
+- **Media phase simplified; no capture tooling ships** ✔ — `/deck:media` is a
+  discussion skill that decides what each slide *shows* (§3 Phase 3), not a
+  production loop. The prior project's VHS lore enforced narrow choices on
+  user content, so rendering moves to a separate skill the user will build
+  privately; `capture-vhs.md`, `regenerate-media.mjs` and `common.tape` are
+  dropped from the tree (the VHS lore stays recorded in §5.4, the
+  glob-not-list rule in §5.6). Production and regeneration are never
+  automatic — a Claude-demo capture burns tokens on every re-run, so nothing
+  re-records without a human deciding to. Named the **companion slide** pattern
+  (§3 Phase 4): info slide takes `media: none`, same-titled neighbours carry
+  the media; duplicate titles need no format change.
 
-Still open: nothing blocking. Next step: M6, `/deck:media` (build plan) —
-ask the user for the prior project's media skill as a reference.
+Still open: nothing blocking. Next step: M7, `/deck:ideate` + `/deck:plan`
+(build plan).

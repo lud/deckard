@@ -13,9 +13,10 @@ Run the build from the project root:
 
 `node "${CLAUDE_PLUGIN_ROOT}/scripts/build.mjs"`
 
-It lints, renders `.build/slides.html` through Marp at the pinned version, and
-publishes a self-contained deck to the configured output. The first run
-downloads the Marp CLI, so allow it time.
+It lints, renders `.build/slides.html` through the Marp CLI it locates
+(`marpCommand` → `PATH` → project `node_modules`), and publishes a
+self-contained deck to the configured output. If it reports that no renderer
+was found, relay its message — installing one is the user's decision.
 
 Run it once and report what it printed: the findings with their severities, the
 output paths and their sizes. The script inspects the project itself, so listing
