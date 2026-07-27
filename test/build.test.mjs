@@ -141,21 +141,46 @@ test('the configured command wins over PATH', () => {
   assert.equal(found.source, 'deckard.json marpCommand')
 })
 
-test('a project-local install is found without configuration', () => {
-  const dir = project()
-  mkdirSync(join(dir, 'node_modules/.bin'), { recursive: true })
-  writeFileSync(join(dir, 'node_modules/.bin/marp'), '#!/bin/sh\necho "v4.4.0"\n', { mode: 0o755 })
+/**
+ * Run `fn` with nothing on PATH, so resolution cannot depend on whether this
+ * machine happens to have a Marp installed. Three tests here originally passed
+ * only because none was installed, which made them silent liars the moment one
+ * was.
+ * @param {() => void} fn
+ */
+function withoutMarpOnPath(fn) {
+  const original = process.env.PATH
+  process.env.PATH = mkdtempSync(join(tmpdir(), 'deckard-empty-path-'))
+  try {
+    fn()
+  } finally {
+    process.env.PATH = original
+  }
+}
 
-  const found = findMarp({ project: dir })
-  assert.ok(found)
-  assert.equal(found.source, 'project node_modules')
-  assert.equal(found.version, '4.4.0')
+test('a configured command that does not run falls through, never trusted', () => {
+  const dir = project()
+
+  const found = findMarp({ project: dir, marpCommand: join(dir, 'does-not-exist') })
+  assert.notEqual(found?.command, join(dir, 'does-not-exist'), 'the dead command is not used')
+
+  withoutMarpOnPath(() => {
+    assert.equal(
+      findMarp({ project: dir, marpCommand: join(dir, 'does-not-exist') }),
+      null,
+      'with nothing else to fall back to, resolution reports nothing found',
+    )
+  })
 })
 
-test('a configured command that does not run is skipped, not trusted', () => {
+test('a project-local install outranks one on PATH', () => {
   const dir = project()
-  const found = findMarp({ project: dir, marpCommand: join(dir, 'does-not-exist') })
-  assert.equal(found, null, 'no marp on PATH here either, so nothing is found')
+  mkdirSync(join(dir, 'node_modules/.bin'), { recursive: true })
+  writeFileSync(join(dir, 'node_modules/.bin/marp'), '#!/bin/sh\necho "v9.9.9"\n', { mode: 0o755 })
+
+  const found = findMarp({ project: dir })
+  assert.equal(found?.source, 'project node_modules', 'the version the project pinned wins')
+  assert.equal(found?.version, '9.9.9')
 })
 
 test('the missing-renderer message asks the user, and never installs silently', () => {
@@ -176,12 +201,14 @@ test('a build with no renderer reports how to get one, and renders nothing', () 
     ['# D', '', '## Slides', '', '### One', '<!--', 'media: none', '-->', '', 'Body.'].join('\n'),
   )
 
-  const result = build({ project: dir })
+  withoutMarpOnPath(() => {
+    const result = build({ project: dir })
 
-  assert.equal(result.ok, false)
-  assert.equal(result.errors, 0, 'the deck itself is fine')
-  assert.match(result.report, /Ask the user to install it/)
-  assert.equal(existsSync(join(dir, 'slides.html')), false, 'nothing was published')
+    assert.equal(result.ok, false)
+    assert.equal(result.errors, 0, 'the deck itself is fine')
+    assert.match(result.report, /Ask the user to install it/)
+    assert.equal(existsSync(join(dir, 'slides.html')), false, 'nothing was published')
+  })
 })
 
 test('the Marp version stays pinned', () => {

@@ -258,10 +258,10 @@ publishable HTML end-to-end.
 
 Needs M4's build entry point.
 
-- [ ] `scripts/autobuild.mjs` — exit fast when `deckard.json` absent; hash
+- [x] `scripts/autobuild.mjs` — exit fast when `deckard.json` absent; hash
       `presentation.md` + active theme against `.build/last-build.hash`;
       rebuild (build only, no publish) on change.
-- [ ] **Report a rebuild in one short line, and report errors** (decided
+- [x] **Report a rebuild in one short line, and report errors** (decided
       2026-07-26). The line fires *only when a rebuild actually happened* —
       something like `deckard: rebuilt .build/slides.html — 9 slides`. A silent
       successful build is indistinguishable from a hook that never ran, which
@@ -277,23 +277,51 @@ Needs M4's build entry point.
       made it a warning to begin with (§5.5). A useful consequence: with
       warnings out of scope the hook can skip the orphan directory scan, so it
       does no filesystem walk beyond reading the source.
-- [ ] **The hook needs a renderer too.** It uses the same `lib/marp.mjs`
+- [x] **The hook needs a renderer too.** It uses the same `lib/marp.mjs`
       resolution, and when nothing is found it emits
       `missingMarpMessage({ hook: true })` — which tells the model to locate a
       Marp (after the *user* installs one, or with their endorsement) and record
       the path in `deckard.json` as `marpCommand`, so every later turn finds it.
       A hook that silently stopped rendering would be worse than one that says
       why.
-- [ ] `hooks/hooks.json` — `Stop` event, `async: true`, sensible timeout.
-- [ ] Verify `async: true` on Stop hooks against the installed CLI (docs say
-      supported as of 2026-07-24, incl. `asyncRewake`; confirm empirically
-      per §5.7 — docs have been wrong before).
-- [ ] Manual verification: in a deckard project, an edit to
+- [x] `hooks/hooks.json` — `Stop` event, sensible timeout, and the **nested
+      entry shape**: `"Stop": [{ "hooks": [{ … }] }]`. The flat form the docs
+      show for plugin hooks validates cleanly and **silently never fires** —
+      measured, and the only symptom is a hook that does nothing.
+- [x] Verify `async` on Stop hooks empirically (§5.7 — docs have been wrong
+      before). It is supported, and it **does not survive a headless session**:
+      `claude -p` exits at the end of a turn and kills the backgrounded hook,
+      even for a script that only writes a file, because Node's startup loses a
+      race that a shell builtin wins. So the plan's `async: true` became
+      **`async: false`**, which the numbers make cheap — **~30 ms** on a turn
+      that changed nothing, **~0.5 s** for a real re-render. Blocking briefly
+      and reliably beats never blocking and sometimes not running.
+- [x] Manual verification: in a deckard project, an edit to
       `presentation.md` is rebuilt by end of turn; in a non-deckard project
       the hook is an instant no-op; a quiet turn triggers no rebuild.
 
 **Done when:** editing a slide and ending the turn refreshes `slides.html`
 with no visible latency at the prompt.
+
+**Landed 2026-07-26.** `just check` green (74 tests). Verified live: a session
+that appended a slide to `presentation.md` came back to a `.build/` holding
+`slides.md`, `slides.html`, `theme.css` and `last-build.hash`, and a second
+session that changed nothing left every byte alone. Direct runs cover the rest
+of the matrix — a non-deckard project prints nothing (30 ms), a broken deck
+reports `1 error … run /deck:build for detail`, and a missing renderer reports
+one line to the user plus the full `marpCommand` instruction to the model.
+
+- **Reporting goes through `systemMessage`** in JSON on stdout. A hook's plain
+  stdout on exit 0 goes to the debug log and is never shown, so the obvious
+  `console.log` would have been invisible. `additionalContext` carries the
+  detail the *model* needs (lint findings, the install instruction) while the
+  user sees one line. The `systemMessage` display itself is UI-level and cannot
+  be confirmed from a headless run — it needs one interactive turn to see.
+- **The hash is written only after a successful render**, so a failed build
+  retries on the next turn instead of marking broken output as current.
+- **No `requireNode()` guard here**, unlike the other entry points: an old
+  runtime should leave the session alone rather than complain once per turn.
+  `/deck:build` is where that gets said.
 
 ## M6 — `/deck:media`
 
@@ -352,13 +380,37 @@ Prompt-craft; §3 already contains the working prompts.
       repos; ask the user where the private dir/repo should live; rebuild
       the kitchen-sink fixture with it.
 - [ ] Kit resolution in the scripts: path from `deckard.json`, fallback to
-      the bundled default; clear error when a kit lacks `theme.css`.
+      the bundled default; clear error when a kit lacks `theme.css`
+      (landed early at M4 — `lib/kit.mjs` — because the build needed it;
+      re-verify here against a second, real kit).
+- [ ] **Verify and test `embed-fonts.mjs` against real fonts.** M4 left this
+      the one code path never exercised for real: the bundled default kit has
+      no `fonts/` and no `url()` references, so the only coverage is a unit
+      test with a text file named `.woff2`. The WTTJ kit is the first kit with
+      genuine font files, so verify here that:
+      - every `url()` in the kit's `theme.css` resolves and is replaced by a
+        `data:` URI in `<outDir>/theme.css`, with the kit itself left
+        unmodified;
+      - the **published** deck renders in the kit's typeface with no network
+        access — the real proof is opening it offline, since a missing embed
+        degrades silently to a fallback font rather than erroring;
+      - each font format the kit ships maps to the right MIME type
+        (`woff2`/`woff`/`ttf`/`otf`), and a format outside that set is
+        reported rather than silently left as a relative reference;
+      - `unicode-range`, `font-weight` and `font-style` survive untouched —
+        substitution rewrites the `url()` only, which is the whole reason it
+        works on references the kit author wrote.
+      Add a fixture kit with one small real font (a permissively licensed
+      face, not the WTTJ one — the scrub rule keeps brand material out of this
+      repo) so the path stays covered by `just check` afterwards.
 - [ ] Theme verification habit (§8): export representative slide PNGs (the
       kitchen-sink fixture supplies one slide per class) and review; grep
-      compiled HTML for cascade conflicts with Marp defaults.
+      compiled HTML for cascade conflicts with Marp defaults. This is also
+      where the layouts deferred from M4 get designed and checked.
 
-**Done when:** switching kits is a one-line config change and the fixture
-builds correctly under both.
+**Done when:** switching kits is a one-line config change, the fixture builds
+correctly under both, and the published deck shows the kit's fonts with the
+network off.
 
 ## M9 — Open-source prep
 

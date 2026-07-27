@@ -42,9 +42,9 @@ function filesUnder(dir, projectDir) {
 
 /**
  * @param {{ title: string | null, slides: import('./deck-parse.mjs').Slide[], findings: import('./deck-parse.mjs').Finding[] }} deck
- * @param {{ projectDir: string }} options
+ * @param {{ projectDir: string, warnings?: boolean }} options
  */
-export function lintDeck(deck, { projectDir }) {
+export function lintDeck(deck, { projectDir, warnings = true }) {
   const findings = [...deck.findings]
   /** @type {Set<string>} */
   const referenced = new Set()
@@ -96,7 +96,9 @@ export function lintDeck(deck, { projectDir }) {
     }
   }
 
-  for (const dir of MEDIA_DIRS) {
+  // Skipping warnings also skips the only filesystem walk in here, which is
+  // what lets the autobuild hook run on every turn for free.
+  for (const dir of warnings ? MEDIA_DIRS : []) {
     for (const path of filesUnder(join(projectDir, dir), projectDir)) {
       if (!referenced.has(path)) {
         flag('orphaned-asset', 0, `"${path}" is on disk but no slide references it`)

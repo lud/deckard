@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/autobuild.mjs\"",
+            "async": false,
+            "timeout": 120,
+            "statusMessage": "Rebuilding the deck"
+          }
+        ]
+      }
+    ]
+  }
+}

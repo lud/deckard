@@ -19,9 +19,9 @@ import { publish } from './publish.mjs'
 export { PINNED_MARP } from './lib/marp.mjs'
 
 /**
- * @param {{ project: string, skipPublish?: boolean, skipLint?: boolean }} options
+ * @param {{ project: string, skipPublish?: boolean, skipLint?: boolean, warnings?: boolean }} options
  */
-export function build({ project, skipPublish = false, skipLint = false }) {
+export function build({ project, skipPublish = false, skipLint = false, warnings = true }) {
   const config = readConfig(project)
   const sourcePath = join(project, config.source)
   if (!existsSync(sourcePath)) {
@@ -32,7 +32,7 @@ export function build({ project, skipPublish = false, skipLint = false }) {
   mkdirSync(outDir, { recursive: true })
 
   const deck = parseDeck(readFileSync(sourcePath, 'utf8'))
-  const findings = skipLint ? [] : lintDeck(deck, { projectDir: project })
+  const findings = skipLint ? [] : lintDeck(deck, { projectDir: project, warnings })
   const errors = countErrors(findings)
   const report = [formatFindings(findings, config.source).trimEnd()]
 
@@ -52,7 +52,7 @@ export function build({ project, skipPublish = false, skipLint = false }) {
 
   const renderer = findMarp({ project, marpCommand: config.marpCommand })
   if (!renderer) {
-    return { ok: false, errors: 0, findings, report: missingMarpMessage().trimEnd() }
+    return { ok: false, errors: 0, noRenderer: true, findings, report: missingMarpMessage().trimEnd() }
   }
   const note = versionNote(renderer.version)
   if (note) report.push(note)
@@ -83,7 +83,15 @@ export function build({ project, skipPublish = false, skipLint = false }) {
     )
   }
 
-  return { ok: true, errors: 0, findings, published, html, report: report.join('\n') }
+  return {
+    ok: true,
+    errors: 0,
+    findings,
+    published,
+    html,
+    slides: deck.slides.length,
+    report: report.join('\n'),
+  }
 }
 
 if (isEntryPoint(import.meta.url)) {

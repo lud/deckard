@@ -711,10 +711,27 @@ short and a private kit (§8, WTTJ) explicit.
 
 ### Autobuild hook
 A `Stop` hook (fires once per turn, when the agent hands the prompt back — not
-per message) declared `async: true`, so it never blocks control returning to
-the user. It no-ops without `deckard.json`, hashes `presentation.md` + theme
-against the last build, and re-renders only on change — quiet turns cost
-nothing. `/build` remains the explicit path: full lint + publish + a
+per message). It no-ops without `deckard.json`, hashes `presentation.md` + the
+active theme against the last build, and re-renders only on change — quiet turns
+cost nothing.
+
+**Two things about hooks that had to be measured** (2026-07-26; the docs and the
+design's own assumption were both wrong):
+
+- **The entry shape.** A `Stop` array of hook objects — the flat form — is
+  accepted, validates, and **silently never fires**. What runs is the nested
+  group: `"Stop": [{ "hooks": [{ type, command, … }] }]`. Nothing reports the
+  difference, so the only symptom is a hook that does nothing.
+- **`async: true` does not survive a headless session.** When `claude -p`
+  finishes a turn it exits, and the backgrounded hook is killed — even a script
+  that only writes a file, because Node's startup loses the race a shell builtin
+  wins. So the design's original `async: true` is replaced by **`async: false`**,
+  which the measurements make cheap: a turn that touched nothing costs **~30 ms**,
+  and a full re-render costs **~0.5 s** — paid only on turns that changed the
+  deck, which is exactly when the render is wanted. Blocking briefly and
+  reliably beats never blocking and sometimes not running.
+
+`${CLAUDE_PLUGIN_ROOT}` does expand inside a hook command (also measured). `/build` remains the explicit path: full lint + publish + a
 human-readable report; the hook only does the fast incremental render.
 
 The hook speaks in single lines. When it **rebuilds**, it says so — one short

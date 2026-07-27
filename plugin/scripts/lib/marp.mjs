@@ -33,12 +33,15 @@ function probe(command, cwd) {
  * @returns {{ command: string, version: string, source: string } | null}
  */
 export function findMarp({ project, marpCommand }) {
+  // Most specific first: an explicit setting, then the version this project
+  // pinned for itself, then whatever the machine happens to have. A project
+  // that added Marp as a devDependency meant that one.
   /** @type {[string, string][]} */
   const candidates = []
   if (marpCommand) candidates.push([marpCommand, 'deckard.json marpCommand'])
-  candidates.push(['marp', 'PATH'])
   const local = join(project, LOCAL_BIN)
   if (existsSync(local)) candidates.push([local, 'project node_modules'])
+  candidates.push(['marp', 'PATH'])
 
   for (const [command, source] of candidates) {
     const version = probe(command, project)
