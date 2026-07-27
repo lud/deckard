@@ -8,12 +8,20 @@ export const DEFAULTS = {
   source: 'presentation.md',
   captureTool: 'vhs',
   outDir: '.build',
-  publish: 'slides.html',
+  publish: 'slides-embedded.html',
   /** Path to a Marp CLI, when it is not on PATH. */
   marpCommand: null,
 }
 
 export const CONFIG_FILE = 'deckard.json'
+
+/**
+ * The fast render, at the project root: source-relative asset references
+ * resolve there without rewriting, so overwriting a media file and
+ * refreshing the browser shows the new take. Publish (the configured
+ * `publish` name) is the self-contained sibling for sharing.
+ */
+export const RENDER_FILE = 'slides.html'
 
 /**
  * Read a project's config, filling in defaults. The file's presence is what

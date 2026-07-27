@@ -97,7 +97,7 @@ export function autobuild(cwd) {
 
   let result
   try {
-    result = build({ project, skipPublish: true, warnings: false })
+    result = build({ project, warnings: false })
   } catch (error) {
     const message = /** @type {Error} */ (error).message
     writeFileSync(flag, `${message}\n`)

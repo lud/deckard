@@ -19,7 +19,8 @@ presentations about anything — treat the deck's subject as the user's business
 | 1 | `/deck:ideate` | `data/` + discussion | **`notes.md`** — the brainstorm |
 | 2 | `/deck:plan` | `notes.md` + `data/` | **`presentation.md`** — decisions + slides |
 | 3 | `/deck:media` | `presentation.md` | media files + capture directives |
-| 4 | `/deck:build` | `presentation.md` + brand kit | `slides.html` |
+| 4 | `/deck:build` | `presentation.md` + brand kit | `slides.html` at the root |
+| 5 | `/deck:publish` | the render | `slides-embedded.html` — self-contained, shareable |
 
 They run roughly in order and loop back freely. Phases 1 and 2 are separated on
 purpose: ideate settles *what the talk is*, and slides come into existence only
@@ -80,11 +81,14 @@ rather than dropping it. Run `--lint` after editing.
 ## Generated files
 
 ```
-presentation.md ──transform──▶ .build/slides.md ──marp──▶ slides.html
+presentation.md ──transform──▶ .build/slides.md ──marp──▶ slides.html ──publish──▶ slides-embedded.html
 ```
 
-`presentation.md` is the only file anyone edits. `.build/slides.md` exists for
-debugging and is git-ignored; `slides.html` is build output. Presenter notes
+`presentation.md` is the only file anyone edits. `.build/slides.md` exists
+for debugging; `slides.html` at the project root is the fast render — asset
+references stay file references, so overwriting a media file and refreshing
+the browser shows the new take; `slides-embedded.html` is the self-contained
+file for sharing. All three are git-ignored build outputs. Presenter notes
 live once, in the source, and ride into the deck.
 
 ## The transform and its three modes
@@ -115,12 +119,13 @@ media and started re-recording it.
 
 ## Who runs what
 
-The five phases are **user-invoked gates**, which is why you cannot invoke them:
-`/deck:init`, `/deck:ideate`, `/deck:plan`, `/deck:media`, `/deck:build`. Asked
-to build or publish a deck, point the user at `/deck:build` rather than running
-the build script yourself — the phase is theirs to trigger, and the autobuild
-hook already keeps the local render current, so nothing is going stale while
-they decide.
+The phase commands are **user-invoked gates**, which is why you cannot invoke
+them: `/deck:init`, `/deck:ideate`, `/deck:plan`, `/deck:media`,
+`/deck:build`, `/deck:publish`. Asked to build a deck, point the user at
+`/deck:build`; asked to publish or produce the shareable file, point them at
+`/deck:publish` — the phases are theirs to trigger, and the autobuild hook
+already keeps the local render current, so nothing is going stale while they
+decide.
 
 The transform's **read-only modes are yours** to run whenever they help:
 `--lint` after editing a deck, `--status` to read media state.

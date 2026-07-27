@@ -16,8 +16,8 @@ const SCAFFOLD = [
   ['deckard.json', 'deckard.skeleton.json'],
 ]
 
-/** The generated Marp intermediary lives here and stays out of git. */
-const BUILD_DIR = '.build/'
+/** Build outputs: the out dir, the root render, and the published file. */
+const IGNORED = ['.build/', 'slides.html', 'slides-embedded.html']
 
 /**
  * @typedef {'created' | 'skipped' | 'updated'} Action
@@ -55,32 +55,31 @@ export function scaffold(target) {
     }
   }
 
-  report.push(ignoreBuildDir(target))
+  report.push(ignoreBuildOutputs(target))
   return report
 }
 
 /**
- * Add the build directory to the project's `.gitignore`, keeping whatever is
- * already there.
+ * Add the build outputs to the project's `.gitignore`, keeping whatever is
+ * already there and adding only the entries it lacks.
  * @param {string} target
  * @returns {Entry}
  */
-function ignoreBuildDir(target) {
+function ignoreBuildOutputs(target) {
   const dest = join(target, '.gitignore')
-  if (!existsSync(dest)) {
-    writeFileSync(dest, `${BUILD_DIR}\n`)
-    return { action: 'created', path: '.gitignore', note: `+ ${BUILD_DIR}` }
+  const current = existsSync(dest) ? readFileSync(dest, 'utf8') : null
+
+  const lines = (current ?? '').split('\n').map((line) => line.trim().replace(/\/$/, ''))
+  const missing = IGNORED.filter((entry) => !lines.includes(entry.replace(/\/$/, '')))
+  if (current !== null && missing.length === 0) return { action: 'skipped', path: '.gitignore' }
+
+  const separator = current === null || current === '' || current.endsWith('\n') ? '' : '\n'
+  writeFileSync(dest, `${current ?? ''}${separator}${missing.join('\n')}\n`)
+  return {
+    action: current === null ? 'created' : 'updated',
+    path: '.gitignore',
+    note: `+ ${missing.join(' ')}`,
   }
-
-  const current = readFileSync(dest, 'utf8')
-  const ignored = current
-    .split('\n')
-    .some((line) => line.trim().replace(/\/$/, '') === BUILD_DIR.replace(/\/$/, ''))
-  if (ignored) return { action: 'skipped', path: '.gitignore' }
-
-  const separator = current === '' || current.endsWith('\n') ? '' : '\n'
-  writeFileSync(dest, `${current}${separator}${BUILD_DIR}\n`)
-  return { action: 'updated', path: '.gitignore', note: `+ ${BUILD_DIR}` }
 }
 
 /**

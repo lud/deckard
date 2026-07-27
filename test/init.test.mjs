@@ -50,7 +50,10 @@ test('scaffolds the project layout', () => {
     assert.match(report, new RegExp(`created\\s+${path.replace('.', '\\.')}`))
   }
   assert.ok(statSync(join(project, 'data')).isDirectory(), 'data/ is a directory')
-  assert.match(readFileSync(join(project, '.gitignore'), 'utf8'), /^\.build\/$/m)
+  const ignored = readFileSync(join(project, '.gitignore'), 'utf8')
+  assert.match(ignored, /^\.build\/$/m)
+  assert.match(ignored, /^slides\.html$/m, 'the root render stays out of git')
+  assert.match(ignored, /^slides-embedded\.html$/m, 'the published file stays out of git')
 })
 
 test('a second run changes nothing on disk', () => {
@@ -77,18 +80,20 @@ test('a hand-edited file survives byte-identical', () => {
   assert.match(report, /created\s+notes\.md/, 'the other files are still scaffolded')
 })
 
-test('an existing .gitignore keeps its entries and gains .build/ once', () => {
+const ALL_IGNORED = '.build/\nslides.html\nslides-embedded.html\n'
+
+test('an existing .gitignore keeps its entries and gains the outputs once', () => {
   const project = emptyProject()
   writeFileSync(join(project, '.gitignore'), 'node_modules\n')
 
   runInit(project)
-  assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), 'node_modules\n.build/\n')
+  assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), `node_modules\n${ALL_IGNORED}`)
 
   runInit(project)
   assert.equal(
     readFileSync(join(project, '.gitignore'), 'utf8'),
-    'node_modules\n.build/\n',
-    're-running does not duplicate the entry',
+    `node_modules\n${ALL_IGNORED}`,
+    're-running does not duplicate entries',
   )
 })
 
@@ -98,16 +103,20 @@ test('a .gitignore lacking a trailing newline is appended to cleanly', () => {
 
   runInit(project)
 
-  assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), 'node_modules\n.build/\n')
+  assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), `node_modules\n${ALL_IGNORED}`)
 })
 
-test('.build already ignored without a trailing slash is recognized', () => {
+test('entries already present are recognized, slash or not', () => {
   const project = emptyProject()
-  writeFileSync(join(project, '.gitignore'), '.build\n')
+  writeFileSync(join(project, '.gitignore'), '.build\nslides.html\nslides-embedded.html\n')
 
   runInit(project)
 
-  assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.build\n')
+  assert.equal(
+    readFileSync(join(project, '.gitignore'), 'utf8'),
+    '.build\nslides.html\nslides-embedded.html\n',
+    'nothing is added twice',
+  )
 })
 
 test('deckard.json is valid JSON within the documented schema', () => {

@@ -26,6 +26,21 @@
           }
         ]
       }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "^deck:publish$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/publish-command.mjs"],
+            "async": false,
+            "timeout": 120,
+            "statusMessage": "Publishing the deck"
+          }
+        ]
+      }
     ]
   }
 }

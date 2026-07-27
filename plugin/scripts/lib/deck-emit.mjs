@@ -42,6 +42,8 @@ function directives(slide) {
 }
 
 /**
+ * Asset paths pass through exactly as the author wrote them: the render is
+ * written at the project root, where source-relative references resolve.
  * @param {{ title: string | null, slides: import('./deck-parse.mjs').Slide[] }} deck
  * @param {{ source: string }} options
  */

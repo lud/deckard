@@ -1,14 +1,24 @@
 /* @theme deckard-default */
 
 /*
- * The neutral kit: readable defaults with no branding, so a deck builds before
- * anyone has a theme. Fonts referenced with url() below are inlined as data
- * URIs at publish time, from this directory's fonts/ folder.
+ * The neutral kit: a dark, unbranded theme so a deck builds — and already
+ * follows the craft advice (dark background keeps focus on the speaker,
+ * reference/presentation-craft.md) — before anyone designs a brand kit.
+ * Anthracite surfaces, very light grey text, one restrained steel-blue
+ * accent. Fonts referenced with url() below are inlined as data URIs at
+ * publish time, from this directory's fonts/ folder.
+ *
+ * Palette (kit.md carries usage notes):
+ *   background #1B1F24   surface #242A31   hairline #39414A
+ *   text #E8EAED         headings #F4F6F8  muted #9AA3AD
+ *   accent #7FB0D4
  */
 
 @import 'default';
 
 section {
+  background: #1b1f24;
+  color: #e8eaed;
   font-size: 26px;
   padding: 60px 70px;
 }
@@ -24,29 +34,151 @@ section.lead h1 {
 
 h1,
 h2,
-h3 {
+h3,
+h4 {
+  color: #f4f6f8;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+h2 {
+  border-bottom: 1px solid #39414a;
+  padding-bottom: 0.2em;
+}
+
+a {
+  color: #7fb0d4;
+}
+
+strong {
+  color: #f4f6f8;
 }
 
 section > :last-child {
   margin-bottom: 0;
 }
 
+blockquote {
+  border-left: 3px solid #7fb0d4;
+  color: #9aa3ad;
+}
+
+hr {
+  border-color: #39414a;
+}
+
+/* Panels: code and tables sit on a lighter surface, not in outline boxes. */
+
 code {
+  background: #242a31;
+  color: #e8eaed;
   font-size: 0.85em;
 }
 
 pre {
+  background: #242a31;
+  border: 1px solid #39414a;
   font-size: 0.8em;
   line-height: 1.4;
+}
+
+pre code {
+  background: transparent;
 }
 
 table {
   font-size: 0.85em;
 }
 
+th {
+  background: #242a31;
+  color: #f4f6f8;
+  border-color: #39414a;
+}
+
+/* The imported theme paints cells white; restate them on the cell itself. */
+td {
+  background: #1b1f24;
+  border-color: #39414a;
+}
+
+tbody tr:nth-child(even) td {
+  background: #20252b;
+}
+
 img {
   display: block;
   margin-inline: auto;
+}
+
+/* Pagination, header and footer stay legible but quiet. */
+
+section::after,
+header,
+footer {
+  color: #9aa3ad;
+}
+
+/*
+ * Syntax highlighting: the imported default theme colors tokens for a light
+ * background, so restate them dark-friendly. Muted hues, one family per
+ * token role, all ≥ 4.5:1 on the panel surface.
+ */
+
+.hljs {
+  color: #e8eaed;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #7b8591;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-tag {
+  color: #8ab4dc;
+}
+
+.hljs-string,
+.hljs-addition,
+.hljs-regexp {
+  color: #a8c793;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-meta {
+  color: #d9b98a;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-function {
+  color: #e8eaed;
+  font-weight: 600;
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable {
+  color: #c9a9c7;
+}
+
+.hljs-deletion {
+  color: #d09a9a;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
 }

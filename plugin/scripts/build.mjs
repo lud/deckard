@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { readConfig } from './lib/config.mjs'
+import { RENDER_FILE, readConfig } from './lib/config.mjs'
 import { countErrors, formatFindings, lintDeck } from './lib/deck-lint.mjs'
 import { parseDeck } from './lib/deck-parse.mjs'
 import { emitMarp } from './lib/deck-emit.mjs'
@@ -19,9 +19,11 @@ import { publish } from './publish.mjs'
 export { PINNED_MARP } from './lib/marp.mjs'
 
 /**
- * @param {{ project: string, skipPublish?: boolean, skipLint?: boolean, warnings?: boolean }} options
+ * Lint + render by default; the deliberate embed step is opt-in, behind
+ * /deck:publish.
+ * @param {{ project: string, publish?: boolean, skipLint?: boolean, warnings?: boolean }} options
  */
-export function build({ project, skipPublish = false, skipLint = false, warnings = true }) {
+export function build({ project, publish: withPublish = false, skipLint = false, warnings = true }) {
   const config = readConfig(project)
   const sourcePath = join(project, config.source)
   if (!existsSync(sourcePath)) {
@@ -57,7 +59,10 @@ export function build({ project, skipPublish = false, skipLint = false, warnings
   const note = versionNote(renderer.version)
   if (note) report.push(note)
 
-  const html = join(outDir, 'slides.html')
+  // The render lands at the project root so the author's source-relative
+  // asset references resolve as written — overwrite a media file, refresh
+  // the browser, see the new take.
+  const html = join(project, RENDER_FILE)
   const marp = spawnSync(
     renderer.command,
     [slides, '--theme', theme, '--html', '--output', html],
@@ -76,7 +81,7 @@ export function build({ project, skipPublish = false, skipLint = false, warnings
   }
 
   let published
-  if (!skipPublish) {
+  if (withPublish) {
     published = publish({ project, input: html })
     report.push(
       `published ${relative(project, published.to)} — ${Math.round(published.bytes / 1024)} kB, ${published.inlined.length} asset(s) inlined`,
@@ -100,7 +105,7 @@ if (isEntryPoint(import.meta.url)) {
   const project = resolve(args.find((arg) => !arg.startsWith('-')) ?? process.cwd())
   const result = build({
     project,
-    skipPublish: args.includes('--no-publish'),
+    publish: args.includes('--publish'),
     skipLint: args.includes('--no-lint'),
   })
   process.stdout.write(`${result.report}\n`)

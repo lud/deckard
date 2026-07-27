@@ -150,4 +150,15 @@ test('the hook manifest uses the shape the CLI actually honours', () => {
   assert.equal(relayEntry.command, 'node')
   assert.deepEqual(relayEntry.args, ['${CLAUDE_PLUGIN_ROOT}/scripts/prompt-relay.mjs'])
   assert.equal(relayEntry.async, false)
+
+  // /deck:publish is intercepted at expansion, before any model turn. The
+  // command_name in the payload is namespaced (probed 2026-07-27), and the
+  // matcher is anchored so regex-matching CLI versions cannot over-match.
+  const [expansionGroup] = manifest.hooks.UserPromptExpansion
+  assert.equal(expansionGroup.matcher, '^deck:publish$')
+  const [publishEntry] = expansionGroup.hooks
+  assert.equal(publishEntry.type, 'command')
+  assert.equal(publishEntry.command, 'node')
+  assert.deepEqual(publishEntry.args, ['${CLAUDE_PLUGIN_ROOT}/scripts/publish-command.mjs'])
+  assert.equal(publishEntry.async, false, 'async hooks cannot return decisions')
 })

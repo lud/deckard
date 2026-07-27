@@ -31,7 +31,7 @@ roughly in order but loop back freely.
 | 1 | **Ideate** | `data/` (any inputs) + discussion with the user | **`notes.md`** — the brainstorm: material, exploration, tentative decisions, gaps | `/ideate` |
 | 2 | **Plan** | `notes.md` + `data/` | **`presentation.md`** — clean decisions + slides (§2) | `/plan` |
 | 3 | **Produce media** | `presentation.md` | media files + directives | `/media` |
-| 4 | **Build & publish** | `presentation.md` + brand kit | self-contained HTML | `/build` (+ automatic Stop hook, §8) |
+| 4 | **Build & publish** | `presentation.md` + brand kit | `slides.html` render; `slides-embedded.html` self-contained | `/build` (+ automatic Stop hook, §8); `/publish` for the shareable file |
 
 Phase 0 is **`/init`** — a deterministic, idempotent scaffold: the skill body
 just runs `scripts/init.mjs` via a dynamic-context bang command
@@ -59,7 +59,9 @@ presentation.md     # /plan's clean, decided artifact: distilled goal/audience/
 deckard.json        # project config (brand-kit ref, overrides) + the marker
                     #   the plugin's hooks key on (§8). Created by /init.
 .build/slides.md    # generated Marp file, git-ignored, never hand-edited (§4).
-slides.html         # build output; publish → self-contained HTML.
+slides.html         # the fast render, at the root so asset refs resolve (§4);
+                    #   git-ignored. F5 in a browser shows an overwritten asset.
+slides-embedded.html# /publish's output: self-contained, shareable; git-ignored.
 blueprints/ output/ assets/   # media sources + produced media (§2.4, §5).
 ```
 
@@ -403,9 +405,20 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
   and `unicode-range` under the kit's control and invents no naming convention.
   The composed theme is written to the build directory, so a build never
   mutates the kit it read.
-- **Build and publish write to different files.** The render lands in
-  `<outDir>/slides.html`, git-ignored and keeping relative asset paths; publish
-  writes the configured `publish` name at the project root, self-contained.
+- **Build and publish write to different files, both at the project root.**
+  The render is `slides.html` at the root (decided 2026-07-27), which is
+  what lets asset references pass through the transform **byte-verbatim**:
+  source-relative paths resolve from the root, so there is no rewriting
+  step at all — no parsing heuristic to miss a reference form, no
+  corruption surface, and overwriting a media file is an F5 away from
+  visible. (A first fix rebased paths onto the out dir instead; superseding
+  it deleted that code, §9.) Publish writes the configured `publish` name
+  (default `slides-embedded.html`), self-contained, by substituting the
+  asset paths exactly as the source wrote them. Both outputs are
+  git-ignored by `/init`. One consequence, verified 2026-07-27: exporting
+  PNGs/PDF directly from `.build/slides.md` needs the file copied to the
+  project root first (Marp resolves relative to the input file, and stdin
+  input resolves nothing) — a dev-side habit, not a user path.
   Errors from `--lint` stop a build before rendering, since a deck holding what
   the format cannot express renders into output nobody should trust.
 
@@ -620,8 +633,10 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     ideate/SKILL.md            # discuss data/ → notes.md; re-run assesses delta (§3 P1)
     plan/SKILL.md              # notes.md + data/ → presentation.md; re-run reconciles
     media/SKILL.md             # decide what each slide shows (§3 P3); fix 5.2
-    build/SKILL.md             # explicit build+publish: lint, render, report
-  hooks/hooks.json             # Stop → autobuild.mjs; UserPromptSubmit → prompt-relay.mjs (§8)
+    build/SKILL.md             # lint + render to the root, report; the authoritative check
+    publish/SKILL.md           # bang-command → build.mjs --publish; deterministic embed
+  hooks/hooks.json             # Stop → autobuild; UserPromptSubmit → prompt-relay;
+                               #   UserPromptExpansion → publish-command (§8)
   scripts/                     # all zero-dep Node, no install step
     lib/entry.mjs              # Node ≥ 22 guard + isEntryPoint (CLI or import)
     lib/config.mjs             # deckard.json + defaults, for every script
@@ -633,6 +648,7 @@ deckard/                       # own repo: ~/src/deckard — the dev root
     plan-to-slides.mjs         # presentation.md → .build/slides.md (§4); --lint = fix 5.5; --status = media-state JSON for /media
     autobuild.mjs              # exits fast unless deckard.json present + source changed
     prompt-relay.mjs           # UserPromptSubmit: briefs the model on a failed autobuild (§8)
+    publish-command.mjs        # UserPromptExpansion: /deck:publish with zero model turns (§8)
     build.mjs  publish.mjs  embed-fonts.mjs
   templates/
     notes.skeleton.md          # /ideate's brainstorm outline (§3 Phase 1)
@@ -649,11 +665,30 @@ deliberate user-triggered gates). That gate holds only if the scripts behind it
 are not a way around it, so the division is by **effect, not by convenience**:
 the transform's read-only modes (`--lint`, `--status`) are the model's to run
 whenever they help — `/media` structurally depends on `--status` — while the
-phase actions stay the user's to trigger. `/build` renders *and publishes*, so a
-model running `build.mjs` because someone said "build the deck" in prose has
-walked around the gate. The shared skill therefore tells it to point at
-`/deck:build` instead, and notes that autobuild keeps the local render current
-in the meantime, so nothing is stale while the user decides.
+phase actions stay the user's to trigger. Publishing is opt-in at the script
+level too (`build.mjs` defaults to lint + render; `--publish` is the flag
+behind `/deck:publish`), so a model running the build script because someone
+said "build the deck" in prose produces at worst a fresh render — the same
+thing autobuild does — never a published artifact. The shared skill still
+points prose requests at `/deck:build` and `/deck:publish`, and notes that
+autobuild keeps the render current while the user decides.
+
+A bare `/deck:publish` runs with **zero model turns** (landed 2026-07-27):
+a `UserPromptExpansion` hook matches the command by name, runs
+`publish-command.mjs` (lint → render → embed), and answers
+`decision: "block"` with the report as the reason — the expansion never
+happens, no skill loads, no model runs, no tokens. **Arguments are the
+escape hatch back to the model**: on a non-empty `command_args` the hook
+stands aside, the skill expands, its bang command runs the identical build,
+and the model starts its turn with the report in context to address the
+request (`/deck:publish check it stays under 500kb` — verified live). Two payload facts worth
+keeping: `command_name` arrives **namespaced** (`deck:publish` — probed
+2026-07-27; the docs' example shows a bare name), and the matcher is
+anchored (`^deck:publish$`) since older CLIs treat matchers as unanchored
+regexes. The publish *skill* stays as the fallback layer: on a CLI without
+the event, or with plugin hooks disabled, the command expands normally and
+the skill's bang command performs the identical idempotent build — every
+path publishes exactly once, and the model at most relays a report.
 
 Skills pre-authorize their tooling with
 `allowed-tools` so builds don't prompt — `${CLAUDE_PLUGIN_ROOT}` expands there
@@ -878,9 +913,15 @@ fallback stack), logo (inline SVG + clear-space + placement), component
 recipes (card/tag/etc. as CSS), and a DO/DON'T checklist lintable against the
 compiled output.
 
-Deckard bundles a neutral `brand-kits/default/`; the WTTJ kit (the user's
-company brand — Welcome to the Jungle; the user supplies its theme CSS and
-fonts) lives in a **private** directory/repo pointed at from config — which
+Deckard bundles a neutral **dark** `brand-kits/default/` (decided
+2026-07-27): anthracite ground `#1B1F24`, very light grey text `#E8EAED`,
+one steel-blue accent `#7FB0D4`, dark-friendly syntax tokens, and a
+`kit.md` carrying the palette with the one-accent directive — the default
+dogfoods the craft advice that a dark background keeps focus on the
+speaker, and a bright-room deck swaps kits in one config line. The WTTJ kit
+(the user's company brand — Welcome to the Jungle; the user supplies its
+theme CSS and fonts) lives in a **private** directory/repo pointed at from
+config — which
 is what lets the tool itself be open-sourced. A kit directory is **fully
 self-contained**: fonts are *copied* into it, never referenced across repos
 (same rule and reason as the test fixture). No WTTJ-branded material — theme,
@@ -1057,6 +1098,35 @@ Resolved 2026-07-27:
   results, a multi-project review) is a legitimate shape whose parts need
   not relate — narrative is sprinkled where the material honestly carries
   it, never forced.
+- **The default kit went dark** ✔ — see §8 brand kit section. Verified per
+  the §8 habit (kitchen-sink PNG exports, reviewed): the review caught the
+  imported theme's white table cells (restated dark on the `td` itself) —
+  and a real pipeline bug, below.
+- **Local-render asset paths fixed** ✔ — the generated `slides.md` lives in
+  the out dir but referenced project-root-relative asset paths, so the
+  *local* render (autobuild's output) showed broken images; publish had
+  been masking it by substituting exactly those literal paths. Found by the
+  theme-verification habit. First fixed by rewriting paths in the emitter.
+  *Superseded the same day — next entry: the render moved to the project
+  root instead, and the rewriting code was deleted.*
+- **The render lives at the project root; publish is its own command** ✔ —
+  `slides.html` at the root is where source-relative references resolve, so
+  the transform passes asset paths through byte-verbatim: the whole
+  rewriting mechanism (regex, fence-awareness, its inline-code-span
+  corruption vector, emit/parse matcher drift, dual-form publish
+  substitution) is deleted rather than hardened, and the author gets an F5
+  feedback loop — overwrite a media file, refresh, see it. Publish writes
+  `slides-embedded.html` (default; `publish` in config) and moves behind
+  **`/deck:publish`** — **zero model turns** via a `UserPromptExpansion`
+  interception hook (§8), with a bang-command skill on the `/init` pattern
+  as the fallback layer; both paths verified live.
+  `build.mjs` defaults to lint + render; `--publish` opts in, which turns
+  the §8 gate's "walked around the build" worst case into a harmless
+  re-render. `/init` git-ignores both root outputs. Costs, measured: theme
+  edits still need a re-render (Marp inlines the theme into the HTML —
+  autobuild covers it at turn end), and PNG/PDF exports from
+  `.build/slides.md` need a copy at the root first (stdin input resolves no
+  local files — probed).
 - **Media phase simplified; no capture tooling ships** ✔ — `/deck:media` is a
   discussion skill that decides what each slide *shows* (§3 Phase 3), not a
   production loop. The prior project's VHS lore enforced narrow choices on

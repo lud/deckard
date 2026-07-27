@@ -15,7 +15,7 @@ import { parse } from 'yaml'
 const pluginRoot = fileURLToPath(new URL('../plugin', import.meta.url))
 
 /** Skills carrying a phase of the pipeline (framework.md §1). */
-const PHASE_SKILLS = ['build', 'ideate', 'init', 'media', 'plan']
+const PHASE_SKILLS = ['build', 'ideate', 'init', 'media', 'plan', 'publish']
 
 /** Shared background that every phase skill points at, whichever runs first. */
 const SHARED_SKILL = 'pipeline'

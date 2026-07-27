@@ -324,6 +324,27 @@ test('layout and marp keys become spot directives above the title', () => {
   assert.doesNotMatch(slides, /^transition:/m)
 })
 
+test('asset paths pass through exactly as written', () => {
+  // The render is written at the project root, where source-relative
+  // references resolve — so the emitter never touches a path, and there is
+  // no rewrite to corrupt inline code, HTML images, or anything else.
+  const source = [
+    '# Deck',
+    '',
+    '## Slides',
+    '',
+    '### One',
+    '',
+    '![bg right:40% fit](assets/shot.png)',
+    'An example in prose: `![x](assets/inline.png)`.',
+    '',
+  ].join('\n')
+
+  const out = emit(source)
+  assert.match(out, /!\[bg right:40% fit\]\(assets\/shot\.png\)/)
+  assert.match(out, /`!\[x\]\(assets\/inline\.png\)`/)
+})
+
 test('pipeline metadata never reaches the generated file', () => {
   const output = emit(
     ['# D', '', '## Slides', '', '### Title', '<!--', 'media: pending', 'media-type: terminal', '-->', '', 'B.'].join(

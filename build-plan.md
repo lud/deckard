@@ -542,8 +542,18 @@ tests cover both).
 
 ## M8 — Brand kits
 
-- [ ] `brand-kits/default/` — neutral `theme.css` (+ minimal `kit.md`);
-      referenced by the skeleton `deckard.json`.
+- [x] `brand-kits/default/` — neutral `theme.css` (+ minimal `kit.md`);
+      referenced by the skeleton `deckard.json`. **Landed early 2026-07-27
+      as a dark theme** (user decision, framework §8/§9): anthracite ground,
+      very light grey text, one steel-blue accent, dark-friendly syntax
+      tokens; `kit.md` carries the palette and the one-accent directive.
+      Verified with the §8 PNG-export habit over the kitchen-sink fixture
+      (all slide classes reviewed) — which caught the imported theme's
+      white table cells (fixed on `td`) and the local-render asset-path bug
+      (first fixed by rebasing paths in the emitter — *superseded the same
+      day*: the render moved to the project root and the rewriting code was
+      deleted; see the root-render section below). M8 still owns the layout
+      design pass with a real brand.
 - [ ] Build the **WTTJ kit** (the user supplies the WTTJ theme CSS and
       fonts — ask for them) as a private directory following the contract —
       fully self-contained, fonts **copied** in, never referenced across
@@ -661,6 +671,60 @@ content never copied).
 Deeper packing stays open for a later pass: Phillips' 42-technique book,
 per-source deep distillation, and possibly assertion-evidence templates as
 a starting layout for brand kits.
+
+---
+
+## ✔ Render at the root; publish split into /deck:publish — landed 2026-07-27
+
+The user's call, and the right one: the asset-path rewrite (above) defended
+a location choice, so the location moved instead and the rewrite was
+**deleted** — regex, fence-awareness, its inline-code-span corruption
+vector, the emit/parse matcher drift risk, the dual-form publish
+substitution, and their tests. What ships now:
+
+- **`slides.html` renders at the project root** (`RENDER_FILE` in
+  `lib/config.mjs`), where the author's source-relative references resolve
+  as written — the transform passes asset paths through byte-verbatim, and
+  the golden file again matches the source. The F5 loop works: overwrite a
+  media file, refresh the browser, see the new take. (Theme edits still
+  need a re-render — Marp inlines the theme into the HTML; autobuild covers
+  that at turn end.)
+- **`build.mjs` defaults to lint + render**; `--publish` opts into the
+  embed. The inversion turns the old gate concern (a model running the
+  script would publish) into a harmless re-render.
+- **A bare `/deck:publish` runs with zero model turns.** A
+  `UserPromptExpansion` hook (researched against current docs, then probed
+  live) matches the command by name, runs `publish-command.mjs`
+  (lint → render → embed) and blocks the expansion with the report as the
+  visible reason — no skill loads, no model runs, no tokens. **With
+  arguments the hook stands aside** (`command_args` non-empty): the skill
+  expands, its bang runs the same build, and the model answers the request
+  with the report in context — `/deck:publish how big is the published
+  file` answered correctly in a live run, publishing exactly once. Probe findings worth keeping: the
+  payload's `command_name` is the **namespaced** `deck:publish` (the docs'
+  example shows a bare name — the matcher would silently never fire on that
+  guess), and the matcher is anchored (`^deck:publish$`) since older CLIs
+  treat matchers as unanchored regexes. Verified live headless: the block
+  notice carried the full report and `slides-embedded.html` appeared with
+  no assistant output at all.
+- **The publish skill stays as the fallback layer** (the `/init` bang
+  pattern): on a CLI without the `UserPromptExpansion` event or with plugin
+  hooks disabled, the command expands normally and the skill's bang runs
+  the identical idempotent `build.mjs --publish` — every path publishes
+  exactly once, and the model at most relays a report. Also verified live
+  before the hook landed. Policy fallback wording included, same as init.
+- **`publish` config default is `slides-embedded.html`**; `/init`
+  git-ignores `.build/`, `slides.html` and `slides-embedded.html`
+  (idempotent, entries added only when missing).
+- **Probed (§5.7):** Marp stdin input resolves no local files, so PNG/PDF
+  exports from `.build/slides.md` need the file copied to the project root
+  first — the theme-verification habit's new form, dev-side only.
+
+`just check` green (87 tests: the rebasing tests went with the code; a
+pass-through test, the publish skill under the manifest tests, and the
+three-entry gitignore assertions came in). The M4/M5 landed records above
+describe the out-dir render that was true when they landed; this section
+supersedes them on where outputs live.
 
 ---
 

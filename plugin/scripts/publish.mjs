@@ -6,7 +6,7 @@
 // never parses the HTML at all.
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { readConfig } from './lib/config.mjs'
+import { RENDER_FILE, readConfig } from './lib/config.mjs'
 import { parseDeck, slideAssets } from './lib/deck-parse.mjs'
 import { isEntryPoint, requireNode } from './lib/entry.mjs'
 
@@ -35,7 +35,9 @@ export function dataUri(path) {
 }
 
 /**
- * Replace every occurrence of each asset path with its data URI.
+ * Replace every occurrence of each asset path with its data URI. The render
+ * sits at the project root, so the HTML carries the paths exactly as the
+ * source wrote them.
  * @param {string} html
  * @param {string[]} assets project-relative paths, as written in the source
  * @param {string} projectDir
@@ -77,7 +79,7 @@ export function inlineAssets(html, assets, projectDir) {
 export function publish({ project, input, output }) {
   const config = readConfig(project)
   const source = join(project, config.source)
-  const from = input ?? join(project, config.outDir, 'slides.html')
+  const from = input ?? join(project, RENDER_FILE)
   const to = output ?? join(project, config.publish)
 
   if (!existsSync(from)) {
