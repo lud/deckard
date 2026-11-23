@@ -726,6 +726,30 @@ three-entry gitignore assertions came in). The M4/M5 landed records above
 describe the out-dir render that was true when they landed; this section
 supersedes them on where outputs live.
 
+## ✔ Four commands — landed 2026-11-23
+
+`/deck:init` and `/deck:build` are folded into the rest of the pipeline,
+leaving `/deck:ideate`, `/deck:plan`, `/deck:media`, `/deck:publish`
+(framework.md §9, resolved 2026-11-23).
+
+- **Scaffold inside the phases** — `skills/init/` is removed; `ideate` and
+  `plan` each open with the `init.mjs` bang command and its policy
+  fallback, and carry the matching `allowed-tools` grant. The script's
+  report ends at the per-path lines.
+- **Render and lint without a command** — `skills/build/` is removed. The
+  pipeline skill tells the model that `slides.html` is kept current by the
+  hook and that `--lint` is the authoritative health check to run on
+  request. The autobuild error line reads `… — Claude gets the detail with
+  your next prompt`.
+- **`build.mjs` always lints** — the `--no-lint` flag and `skipLint` option
+  are removed along with the command that exposed them.
+- **Missing-source messages** point at `/deck:ideate`.
+
+`just check` green (91 tests). The earlier milestone records above describe
+the six-command surface that was true when they landed; this section
+supersedes them on which commands exist. The bang-command scaffold in
+`ideate` and `plan` awaits a live-session check.
+
 ---
 
 ## Iteration protocol

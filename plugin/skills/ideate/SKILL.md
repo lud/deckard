@@ -2,6 +2,7 @@
 name: ideate
 description: "Phase 1 — read data/ in full, then settle objective, audience and topics in discussion with the user, growing notes.md. Produces a vision, never slides."
 disable-model-invocation: true
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")
 ---
 
 # /deck:ideate
@@ -12,11 +13,24 @@ This phase is a **discussion around `data/`**, not a one-shot write. It ends
 with a vision recorded in `notes.md`; slides come into existence only when
 `/deck:plan` runs.
 
+## The project layout
+
+!`node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"`
+
+The scaffold has run and its report is above. It creates `data/`, `notes.md`,
+`presentation.md` and `deckard.json` where they are missing and leaves every
+existing file byte-identical. Tell the user in one line what it created; when
+every path reads `skipped`, the project was already set up and there is
+nothing to relay.
+
+Should the report instead read `[shell command execution disabled by policy]`,
+run `node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"` with Bash — the scaffold
+is idempotent, so running it is safe either way.
+
 ## Read everything first
 
-Read every input in `data/` **in full** before proposing anything. If the
-project layout is missing, point the user at `/deck:init`; if `data/` is
-empty, ask what material exists and where it should land.
+Read every input in `data/` **in full** before proposing anything. If `data/`
+is empty, ask what material exists and where it should land.
 
 ## Discuss, then settle
 

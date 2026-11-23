@@ -117,8 +117,8 @@ test('lint errors stop the build before anything is rendered', () => {
   )
 })
 
-test('a source that does not exist points at /deck:init', () => {
-  assert.throws(() => build({ project: project() }), /Run \/deck:init/)
+test('a source that does not exist points at /deck:ideate', () => {
+  assert.throws(() => build({ project: project() }), /Run \/deck:ideate/)
 })
 
 /**

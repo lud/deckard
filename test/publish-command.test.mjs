@@ -48,16 +48,18 @@ test('arguments stand the hook aside — the user wants the model', () => {
   assert.ok(!existsSync(join(dir, 'slides-embedded.html')), 'nothing published twice')
 })
 
-test('outside a project, the block points at /deck:init', () => {
+test('outside a project, the block points at /deck:ideate', () => {
   const dir = mkdtempSync(join(tmpdir(), 'deckard-pub-'))
   const out = publishCommand(dir)
+  assert.ok(out)
   assert.equal(out.decision, 'block')
-  assert.match(out.reason, /\/deck:init/)
+  assert.match(out.reason, /\/deck:ideate/)
 })
 
 test('a deck with errors blocks with the findings and publishes nothing', () => {
   const dir = project(BROKEN)
   const out = publishCommand(dir)
+  assert.ok(out)
   assert.equal(out.decision, 'block')
   assert.match(out.reason, /nothing published/)
   assert.match(out.reason, /missing-asset/)
@@ -67,6 +69,7 @@ test('a deck with errors blocks with the findings and publishes nothing', () => 
 test('a clean deck publishes and the report is the reason', () => {
   const dir = project(CLEAN)
   const out = publishCommand(dir)
+  assert.ok(out)
   assert.equal(out.decision, 'block')
   assert.match(out.reason, /published slides-embedded\.html/)
   assert.ok(existsSync(join(dir, 'slides.html')), 'the render lands at the root')

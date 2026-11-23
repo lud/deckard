@@ -1,6 +1,6 @@
 // @ts-check
-// The scaffold's contract is that a second run is a no-op: /deck:init is safe
-// to re-run at any point in a project's life, so every test here works by
+// The scaffold's contract is that a second run is a no-op: it runs on every
+// /deck:ideate and /deck:plan, so it is safe to re-run at any point in a project's life, so every test here works by
 // running it twice and comparing.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

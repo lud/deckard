@@ -1,7 +1,7 @@
 // @ts-check
-// Phase 0 — the deterministic scaffold behind /deck:init. Every existing file
-// is left byte-identical, so the command is safe to re-run at any point in a
-// project's life.
+// The deterministic scaffold that /deck:ideate and /deck:plan run on the way
+// in. Every existing file is left byte-identical, so it is safe to re-run at
+// any point in a project's life.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -91,7 +91,6 @@ export function format(report, target) {
   for (const { action, path, note } of report) {
     lines.push(`  ${action.padEnd(8)} ${path}${note ? `  (${note})` : ''}`)
   }
-  lines.push('', 'Next: /deck:ideate reads data/ and writes notes.md.')
   return `${lines.join('\n')}\n`
 }
 

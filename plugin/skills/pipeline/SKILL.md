@@ -15,14 +15,17 @@ presentations about anything — treat the deck's subject as the user's business
 
 | # | Command | Input | Output |
 |---|---------|-------|--------|
-| 0 | `/deck:init` | — | `data/`, `notes.md`, `presentation.md`, `deckard.json` |
 | 1 | `/deck:ideate` | `data/` + discussion | **`notes.md`** — the brainstorm |
 | 2 | `/deck:plan` | `notes.md` + `data/` | **`presentation.md`** — decisions + slides |
 | 3 | `/deck:media` | `presentation.md` | media files + capture directives |
-| 4 | `/deck:build` | `presentation.md` + brand kit | `slides.html` at the root |
-| 5 | `/deck:publish` | the render | `slides-embedded.html` — self-contained, shareable |
+| 4 | `/deck:publish` | `presentation.md` + brand kit | `slides-embedded.html` — self-contained, shareable |
 
-They run roughly in order and loop back freely. Phases 1 and 2 are separated on
+They run roughly in order and loop back freely. Two things happen without a
+command. **Scaffolding:** `/deck:ideate` and `/deck:plan` lay down whatever
+is missing from the project layout — `data/`, `notes.md`, `presentation.md`,
+`deckard.json` — and leave existing files byte-identical. **Rendering:** the
+autobuild hook re-renders `slides.html` at the end of every turn that changed
+the deck or its theme, so the local preview is always current. Phases 1 and 2 are separated on
 purpose: ideate settles *what the talk is*, and slides come into existence only
 when plan runs, which is what keeps a deck from becoming a pile of slides with
 no throughline.
@@ -120,15 +123,21 @@ media and started re-recording it.
 ## Who runs what
 
 The phase commands are **user-invoked gates**, which is why you cannot invoke
-them: `/deck:init`, `/deck:ideate`, `/deck:plan`, `/deck:media`,
-`/deck:build`, `/deck:publish`. Asked to build a deck, point the user at
-`/deck:build`; asked to publish or produce the shareable file, point them at
-`/deck:publish` — the phases are theirs to trigger, and the autobuild hook
-already keeps the local render current, so nothing is going stale while they
-decide.
+them: `/deck:ideate`, `/deck:plan`, `/deck:media`, `/deck:publish`. Asked to
+publish or produce the shareable file, point the user at `/deck:publish` —
+the phases are theirs to trigger.
+
+Rendering needs nobody: the autobuild hook rebuilds `slides.html` when a turn
+changes the deck. Asked to build or preview the deck, say that `slides.html`
+is already current as of the last edit, and run `--lint` to report on its
+health.
 
 The transform's **read-only modes are yours** to run whenever they help:
-`--lint` after editing a deck, `--status` to read media state.
+`--lint` after editing a deck, `--status` to read media state. `--lint` is
+the authoritative check on a deck: it reports errors and warnings alike,
+while the hook's end-of-turn line reports each change once and leaves
+warnings out. Run it whenever the user asks whether the deck is sound, and
+relay every finding with its line and severity.
 
 When an automatic rebuild fails, the user gets one line from the hook at the
 end of the turn, and **you** get the detail with the next user prompt: a hook

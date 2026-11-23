@@ -65,7 +65,7 @@ export function run(options) {
   if (!existsSync(sourcePath)) {
     return {
       code: 1,
-      stderr: `${source} not found in ${project}. Run /deck:init to scaffold a project.\n`,
+      stderr: `${source} not found in ${project}. Run /deck:ideate to scaffold a project.\n`,
     }
   }
 

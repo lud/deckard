@@ -2,7 +2,7 @@
 name: plan
 description: "Phase 2 — distill notes.md into presentation.md: crystallize the narrative first, then author the full slide set, then iterate one slide at a time."
 disable-model-invocation: true
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/plan-to-slides.mjs":*)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/plan-to-slides.mjs":*), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")
 ---
 
 # /deck:plan
@@ -14,6 +14,14 @@ source of truth. It needs a vision to work from: when `notes.md` is thin or
 missing, push back to `/deck:ideate` and say what is missing — an objective,
 an audience, grounded topics. Slides invented without that global view are
 the failure this gate exists to stop.
+
+!`node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"`
+
+The scaffold report above covers sessions that start here with notes already
+written: any missing project file now exists, and every existing one is
+byte-identical. Mention it only if something was created. Should it read
+`[shell command execution disabled by policy]`, run
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs"` with Bash.
 
 Read `${CLAUDE_PLUGIN_ROOT}/reference/presentation-craft.md` before
 authoring — its narrative and slide sections are the quality bar for both

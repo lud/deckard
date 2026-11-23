@@ -119,7 +119,7 @@ export function autobuild(cwd) {
         ? `${config.source}:${first.line} ${first.code}`
         : `${result.errors} errors in ${config.source}`
     writeFileSync(flag, '')
-    return { systemMessage: `deckard: ${detail} — run /deck:build for detail` }
+    return { systemMessage: `deckard: ${detail} — Claude gets the detail with your next prompt` }
   }
 
   rmSync(flag, { force: true })
@@ -129,8 +129,8 @@ export function autobuild(cwd) {
 
 if (isEntryPoint(import.meta.url)) {
   // No requireNode() guard here: an old runtime should leave the session alone
-  // rather than report a version complaint on every turn. /deck:build is where
-  // that gets said.
+  // rather than report a version complaint on every turn. /deck:publish is
+  // where that gets said.
   let output = null
   try {
     output = autobuild(cwdFromStdin())

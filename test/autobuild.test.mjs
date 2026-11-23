@@ -62,7 +62,7 @@ test('a missing source is not the hook\'s problem to report', () => {
   const dir = mkdtempSync(join(tmpdir(), 'deckard-hook-'))
   writeFileSync(join(dir, 'deckard.json'), '{}')
   assert.equal(fingerprint(dir, DEFAULTS), null)
-  assert.equal(autobuild(dir), null, 'scaffolding is /deck:init\'s job, not a per-turn nag')
+  assert.equal(autobuild(dir), null, 'scaffolding is /deck:ideate\'s job, not a per-turn nag')
 })
 
 test('an unresolvable kit still yields a fingerprint', () => {

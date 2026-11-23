@@ -1,7 +1,7 @@
 {
   "name": "deck",
   "displayName": "Deckard",
-  "description": "Build a presentation from source data to a self-contained Marp deck: ideate, plan, produce media, build.",
+  "description": "Build a presentation from source data to a self-contained Marp deck: ideate, plan, produce media, publish.",
   "version": "0.0.1",
   "author": {
     "name": "lud",

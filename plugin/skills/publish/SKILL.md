@@ -1,6 +1,6 @@
 ---
 name: publish
-description: Produce the self-contained, shareable deck — lint, render, and embed every asset into a single HTML file. Deterministic; the script does everything.
+description: Phase 4 — produce the self-contained, shareable deck. Lints, renders, and embeds every asset into a single HTML file. Deterministic; the script does everything.
 disable-model-invocation: true
 argument-hint: "[optional request about the published deck]"
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/build.mjs" --publish)

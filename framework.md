@@ -8,8 +8,8 @@ end-to-end with Claude Code, whose work sessions were analyzed retrospectively.
 The user keeps that project's materials privately (original scripts, media
 sources, brand styles) and **supplies them on request**; anything supplied is
 snapshot-copied into this repo, never referenced externally. Commands are
-written short throughout (`/ideate`, `/build`); they are namespaced in
-practice (`/deck:ideate`, `/deck:build`).
+written short throughout (`/ideate`, `/publish`); they are namespaced in
+practice (`/deck:ideate`, `/deck:publish`).
 
 This document is the design, not the implementation. It defines the **phases**,
 the **source-document format**, the cross-cutting **conventions**, the **fixes**
@@ -31,14 +31,16 @@ roughly in order but loop back freely.
 | 1 | **Ideate** | `data/` (any inputs) + discussion with the user | **`notes.md`** — the brainstorm: material, exploration, tentative decisions, gaps | `/ideate` |
 | 2 | **Plan** | `notes.md` + `data/` | **`presentation.md`** — clean decisions + slides (§2) | `/plan` |
 | 3 | **Produce media** | `presentation.md` | media files + directives | `/media` |
-| 4 | **Build & publish** | `presentation.md` + brand kit | `slides.html` render; `slides-embedded.html` self-contained | `/build` (+ automatic Stop hook, §8); `/publish` for the shareable file |
+| 4 | **Build & publish** | `presentation.md` + brand kit | `slides.html` render; `slides-embedded.html` self-contained | automatic Stop hook for the render (§8); `/publish` for the shareable file |
 
-Phase 0 is **`/init`** — a deterministic, idempotent scaffold: the skill body
-just runs `scripts/init.mjs` via a dynamic-context bang command
-(`${CLAUDE_PLUGIN_ROOT}` is substituted in skill bodies, including inside bang
-commands — verified against docs 2026-07-24), which creates `data/`, the two
-skeleton docs, and `deckard.json`, and never overwrites an existing file. No model judgment in the scaffold path; other skills nudge the
-user to run it if the layout is missing.
+Phase 0 is the **scaffold**, and it has no command of its own: `/ideate` and
+`/plan` each run `scripts/init.mjs` on the way in via a dynamic-context bang
+command (`${CLAUDE_PLUGIN_ROOT}` is substituted in skill bodies, including
+inside bang commands — verified against docs 2026-07-24), which creates
+`data/`, the two skeleton docs, and `deckard.json`, and never overwrites an
+existing file. It is deterministic and idempotent — no model judgment in the
+scaffold path — so whichever of the two phases a project starts with lays the
+layout down, and every later run leaves it byte-identical.
 
 **The deliberate gate:** `/ideate` produces a *vision*, not slides — slides come
 into existence only when `/plan` runs. This is by design, to stop the common
@@ -57,7 +59,7 @@ notes.md            # /ideate's brainstorm & working memory — material, explor
 presentation.md     # /plan's clean, decided artifact: distilled goal/audience/
                     #   narrative (meta sections) + slides. THE source of truth (§2).
 deckard.json        # project config (brand-kit ref, overrides) + the marker
-                    #   the plugin's hooks key on (§8). Created by /init.
+                    #   the plugin's hooks key on (§8). Scaffolded by /ideate.
 .build/slides.md    # generated Marp file, git-ignored, never hand-edited (§4).
 slides.html         # the fast render, at the root so asset refs resolve (§4);
                     #   git-ignored. F5 in a browser shows an overwritten asset.
@@ -371,7 +373,7 @@ render over a version string would be stricter than the risk warrants.
 The user never edits the Marp file. The pipeline is:
 
 ```
-presentation.md  ──/build script──▶  .build/slides.md  ──marp──▶  slides.html
+presentation.md  ──build script───▶  .build/slides.md  ──marp──▶  slides.html
 (source of truth,     (transform)     (generated, gitignored)      (+ publish → embedded HTML)
  all metadata)
 ```
@@ -415,7 +417,7 @@ presentation.md  ──/build script──▶  .build/slides.md  ──marp─�
   it deleted that code, §9.) Publish writes the configured `publish` name
   (default `slides-embedded.html`), self-contained, by substituting the
   asset paths exactly as the source wrote them. Both outputs are
-  git-ignored by `/init`. One consequence, verified 2026-07-27: exporting
+  git-ignored by the scaffold. One consequence, verified 2026-07-27: exporting
   PNGs/PDF directly from `.build/slides.md` needs the file copied to the
   project root first (Marp resolves relative to the input file, and stdin
   input resolves nothing) — a dev-side habit, not a user path.
@@ -629,11 +631,9 @@ deckard/                       # own repo: ~/src/deckard — the dev root
   .claude-plugin/plugin.json   # name: deck → prefix /deck:* ; displayName: Deckard
   skills/
     pipeline/SKILL.md          # shared background; every phase skill loads it first
-    init/SKILL.md              # bang-command → scripts/init.mjs; deterministic scaffold
-    ideate/SKILL.md            # discuss data/ → notes.md; re-run assesses delta (§3 P1)
-    plan/SKILL.md              # notes.md + data/ → presentation.md; re-run reconciles
+    ideate/SKILL.md            # scaffold bang, then discuss data/ → notes.md; re-run assesses delta (§3 P1)
+    plan/SKILL.md              # scaffold bang, then notes.md + data/ → presentation.md; re-run reconciles
     media/SKILL.md             # decide what each slide shows (§3 P3); fix 5.2
-    build/SKILL.md             # lint + render to the root, report; the authoritative check
     publish/SKILL.md           # bang-command → build.mjs --publish; deterministic embed
   hooks/hooks.json             # Stop → autobuild; UserPromptSubmit → prompt-relay;
                                #   UserPromptExpansion → publish-command (§8)
@@ -669,9 +669,10 @@ phase actions stay the user's to trigger. Publishing is opt-in at the script
 level too (`build.mjs` defaults to lint + render; `--publish` is the flag
 behind `/deck:publish`), so a model running the build script because someone
 said "build the deck" in prose produces at worst a fresh render — the same
-thing autobuild does — never a published artifact. The shared skill still
-points prose requests at `/deck:build` and `/deck:publish`, and notes that
-autobuild keeps the render current while the user decides.
+thing autobuild does — never a published artifact. The shared skill points
+prose requests to publish at `/deck:publish`, and answers prose requests to
+build with the fact that autobuild keeps the render current plus a `--lint`
+report on the deck's health.
 
 A bare `/deck:publish` runs with **zero model turns** (landed 2026-07-27):
 a `UserPromptExpansion` hook matches the command by name, runs
@@ -695,10 +696,10 @@ Skills pre-authorize their tooling with
 as it does in the body, so the grant names the exact command
 (`Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/init.mjs")`) rather than all of
 `node`. A **bang command runs while the skill's context is assembled**, ahead
-of the model's first move: measured 2026-07-26, `/deck:init` scaffolded a
+of the model's first move: measured 2026-07-26, the scaffold bang laid down a
 project even under a grant deliberately set to match nothing. So the grant
-earns its place for the scripts a *model* runs (`/deck:build`), and for the
-policy fallback below.
+earns its place for the scripts a *model* runs (the transform's `--lint` and
+`--status`), and for the policy fallback below.
 
 ### Bang commands — the syntax that fires
 Documented at code.claude.com/docs/en/skills § "Inject dynamic context"
@@ -719,7 +720,7 @@ syntax** — it would run it. Examples belong in a linked reference doc, which
 is loaded by the Read tool at runtime and is never preprocessed (verified).
 
 Consequences the skills are written around:
-- **Deterministic phases** — `/init`'s scaffold cannot be skipped, deferred, or
+- **Deterministic steps** — the scaffold cannot be skipped, deferred, or
   reasoned away by the model, which is the §7 guardrail in its strongest form.
 - **Effects land before the model speaks**, so a bang command must be safe to
   run unconditionally: idempotent, never destructive.
@@ -735,7 +736,7 @@ to load from a subdirectory) + `/reload-plugins`; `claude plugin validate
 plugin --strict` in CI, wired as `just validate`.
 
 ### The shared background skill
-A session can begin at any phase — often `/plan` directly, sometimes `/build` on
+A session can begin at any phase — often `/plan` directly, sometimes `/media` on
 an inherited project — so every phase skill opens with one line:
 
 > Make sure the `deck:pipeline` knowledge skill is loaded.
@@ -751,7 +752,7 @@ Unlike the phase skills it is **model-invocable** — it carries no
 `disable-model-invocation`, because shared knowledge is something the model
 should be able to reach for, while the phases stay deliberate user-triggered
 gates. So the pointer is a one-line request the model satisfies with the Skill
-tool (verified 2026-07-26: a fresh `/deck:init` session's only tool call was
+tool (verified 2026-07-26: a fresh phase session's only tool call was
 `Skill(deck:pipeline)`), and the skill loads once per session rather than per
 phase invocation. It earns its keep on its own too: `/deck:pipeline` explains
 the tool to whoever inherits a deck, and the model can load it when a deck
@@ -763,7 +764,7 @@ skill's own `description` says when it applies. A test asserts every phase
 skill carries the line, so a new skill cannot quietly skip it.
 
 ### Project config — `deckard.json`
-Created by `/init` at the project root. Holds the brand-kit reference, the
+Scaffolded at the project root by `/ideate` or `/plan`. Holds the brand-kit reference, the
 source filename if overridden from `presentation.md`, the preferred capture
 tool, and output paths. It doubles as the **marker file**: plugin hooks fire
 in every project where the plugin is enabled, so `autobuild.mjs` exits
@@ -783,7 +784,7 @@ optional with a default, since the file's mere presence is already the marker:
 }
 ```
 
-`/init` writes the two keys a project actually sets — `brandKit` and `source` —
+The scaffold writes the two keys a project actually sets — `brandKit` and `source` —
 and leaves the rest to their defaults, so a project inherits later default
 changes instead of freezing today's values in every scaffold.
 
@@ -820,16 +821,17 @@ cost nothing.
   deck, which is exactly when the render is wanted. Blocking briefly and
   reliably beats never blocking and sometimes not running.
 
-`${CLAUDE_PLUGIN_ROOT}` does expand inside a hook command (also measured). `/build` remains the explicit path: full lint + publish + a
-human-readable report; the hook only does the fast incremental render.
+`${CLAUDE_PLUGIN_ROOT}` does expand inside a hook command (also measured). The
+hook is the only render path during authoring; the full lint report is the
+model's `--lint` run, and `/publish` is the explicit lint + render + embed.
 
 The hook speaks in single lines. When it **rebuilds**, it says so — one short
 line naming the output and slide count — because a silent successful build is
 indistinguishable from a hook that never ran, and a mechanism nobody can see
 working is a mechanism nobody trusts. When a **turn changed nothing**, it prints
 nothing, so quiet turns stay quiet. When the deck has **errors**, it names the
-first one and points at `/build`, rather than letting a deck break and stay
-broken until someone runs it.
+first one and says the detail reaches Claude with the next prompt, rather than
+letting a deck break and stay broken until someone notices.
 
 **The hook speaks to the user only** (decided 2026-07-27). The model *is*
 reachable from a Stop hook — `hookSpecificOutput.additionalContext` arrives at
@@ -880,17 +882,18 @@ enabled; the lint re-check runs only when the flag exists.
 
 **One consequence to be honest about: the hook reports once per change, not once
 per turn.** A line that scrolls past unnoticed does not come back, so the hook is
-a *notification*, never the record of a deck's health. `/build` is the
-authoritative check — it re-lints from scratch, reports warnings the hook
-deliberately suppresses, and publishes. The skills say so, and a deck being
-prepared for an audience deserves an explicit build before it is shared
-regardless.
+a *notification*, never the record of a deck's health. The transform's
+`--lint` is the authoritative check — it lints from scratch and reports the
+warnings the hook deliberately suppresses. The model runs it after editing
+and whenever the user asks whether the deck is sound, and `/publish` lints
+again before it embeds anything.
 
 Warnings stay out of the automatic path: `orphaned-asset` fires legitimately on
 every turn while media is being produced, and output that nags every turn is
-output people learn to skip. `/build` is where the full picture, warnings
-included, gets reported — and because the hook keeps the render current, `/build`
-is the deliberate publish-and-verify step rather than part of the authoring loop.
+output people learn to skip. `--lint` and `/publish` are where the full
+picture, warnings included, gets reported — and because the hook keeps the
+render current, `/publish` is the one deliberate output step rather than part
+of the authoring loop.
 
 ### Brand kit — a directory contract, not a skill
 Scripts can't consume a skill and a config file can't reference one, so a kit
@@ -904,7 +907,7 @@ is a **directory with a fixed contract**, referenced by path in `deckard.json`:
 ```
 
 Both consumers are served: the **build scripts** use `theme.css` + `fonts/`
-deterministically; the **agent** (the plan/build skills say so) reads `kit.md`
+deterministically; the **agent** (the shared skill says so) reads `kit.md`
 when making styling decisions, if it exists. `kit.md` carries what the old
 brand-kit-skill idea would have: palette (core tokens with hex + usage +
 "never use as" negatives; secondary Light/Solid/Dark triads with semantic
@@ -1138,6 +1141,19 @@ Resolved 2026-07-27:
   re-records without a human deciding to. Named the **companion slide** pattern
   (§3 Phase 4): info slide takes `media: none`, same-titled neighbours carry
   the media; duplicate titles need no format change.
+
+Resolved 2026-11-23:
+- **Four commands: `/ideate`, `/plan`, `/media`, `/publish`** ✔ — the
+  commands that remain are the three conversation modes plus the one
+  deliberate output step. The scaffold runs as a bang command inside
+  `/ideate` and `/plan` (idempotent, so every run after the first is a
+  no-op), which supersedes the explicit `/init` of 2026-07-24. The render
+  belongs to the autobuild hook and the full lint report to the model's
+  `--lint` run, which supersedes `/build` as the explicit path; the hook's
+  error line now says the detail reaches Claude with the next prompt, the
+  channel `prompt-relay` already provides. `build.mjs` keeps its role as
+  the shared lint + render (+ `--publish`) script behind the hook and
+  `/publish`, and always lints.
 
 Still open: nothing blocking. Next step: M7, `/deck:ideate` + `/deck:plan`
 (build plan).

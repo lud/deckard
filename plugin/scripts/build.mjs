@@ -1,5 +1,6 @@
 // @ts-check
-// The explicit build path behind /deck:build: lint, render, publish, report.
+// Lint, render, publish, report — shared by the autobuild hook and
+// /deck:publish.
 // Marp runs at a pinned version — floating on latest contradicts
 // reproducibility (§3 Phase 4).
 import { spawnSync } from 'node:child_process'
@@ -21,20 +22,20 @@ export { PINNED_MARP } from './lib/marp.mjs'
 /**
  * Lint + render by default; the deliberate embed step is opt-in, behind
  * /deck:publish.
- * @param {{ project: string, publish?: boolean, skipLint?: boolean, warnings?: boolean }} options
+ * @param {{ project: string, publish?: boolean, warnings?: boolean }} options
  */
-export function build({ project, publish: withPublish = false, skipLint = false, warnings = true }) {
+export function build({ project, publish: withPublish = false, warnings = true }) {
   const config = readConfig(project)
   const sourcePath = join(project, config.source)
   if (!existsSync(sourcePath)) {
-    throw new Error(`${config.source} not found in ${project}. Run /deck:init to scaffold a project.`)
+    throw new Error(`${config.source} not found in ${project}. Run /deck:ideate to scaffold a project.`)
   }
 
   const outDir = join(project, config.outDir)
   mkdirSync(outDir, { recursive: true })
 
   const deck = parseDeck(readFileSync(sourcePath, 'utf8'))
-  const findings = skipLint ? [] : lintDeck(deck, { projectDir: project, warnings })
+  const findings = lintDeck(deck, { projectDir: project, warnings })
   const errors = countErrors(findings)
   const report = [formatFindings(findings, config.source).trimEnd()]
 
@@ -106,11 +107,10 @@ if (isEntryPoint(import.meta.url)) {
   const result = build({
     project,
     publish: args.includes('--publish'),
-    skipLint: args.includes('--no-lint'),
   })
   process.stdout.write(`${result.report}\n`)
   if (!result.ok) {
-    process.stderr.write('build stopped: fix the errors above, or re-run with --no-lint\n')
+    process.stderr.write('build stopped: fix the errors above\n')
   }
   process.exit(result.ok ? 0 : 1)
 }
