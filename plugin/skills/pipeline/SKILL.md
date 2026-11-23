@@ -15,7 +15,7 @@ presentations about anything — treat the deck's subject as the user's business
 
 | # | Command | Input | Output |
 |---|---------|-------|--------|
-| 1 | `/deck:ideate` | `data/` + discussion | **`notes.md`** — the brainstorm |
+| 1 | `/deck:ideate` | the user's direction + `data/` | **`notes.md`** — the brainstorm, and a `data/` grown to back it |
 | 2 | `/deck:plan` | `notes.md` + `data/` | **`presentation.md`** — decisions + slides |
 | 3 | `/deck:media` | `presentation.md` | media files + capture directives |
 | 4 | `/deck:publish` | `presentation.md` + brand kit | `slides-embedded.html` — self-contained, shareable |
@@ -25,7 +25,15 @@ command. **Scaffolding:** `/deck:ideate` and `/deck:plan` lay down whatever
 is missing from the project layout — `data/`, `notes.md`, `presentation.md`,
 `deckard.json` — and leave existing files byte-identical. **Rendering:** the
 autobuild hook re-renders `slides.html` at the end of every turn that changed
-the deck or its theme, so the local preview is always current. Phases 1 and 2 are separated on
+the deck or its theme, so the local preview is always current.
+
+**`data/` is the shared pool of source material**, and ideate is where it
+gets built: the user drops files in at any time, and during ideation the
+agent helps create, fetch, find and refine more, adding files with their
+provenance recorded and leaving the user's own files as they are. Every
+ideate run opens with an inventory of what is there.
+
+Phases 1 and 2 are separated on
 purpose: ideate settles *what the talk is*, and slides come into existence only
 when plan runs, which is what keeps a deck from becoming a pile of slides with
 no throughline.

@@ -28,7 +28,7 @@ with the result.
 
 | Step | Command | You bring | You get |
 |------|---------|-----------|---------|
-| 1 | `/deck:ideate` | source material in `data/` | `notes.md` — the vision for the talk |
+| 1 | `/deck:ideate` | a subject, and any material you have | `notes.md` — the vision for the talk, and the `data/` behind it |
 | 2 | `/deck:plan` | the settled notes | `presentation.md` — narrative and slides |
 | 3 | `/deck:media` | the slides | a visual, or a capture directive, per slide |
 | 4 | `/deck:publish` | the finished deck | `slides-embedded.html` — one file to share |
@@ -37,14 +37,22 @@ with the result.
 
 Create an empty directory, start Claude in it, and run `/deck:ideate`. The
 first run scaffolds the project: a `data/` directory, `notes.md`,
-`presentation.md` and `deckard.json`. Drop your source material into `data/`
-— survey exports, documents, spreadsheets, rough notes, in any format.
+`presentation.md` and `deckard.json`. Drop whatever source material you
+have into `data/` — survey exports, documents, spreadsheets, rough notes, in
+any format — at any point; each run of `/deck:ideate` starts by listing what
+is there and pointing out what is new.
 
-Claude reads everything in `data/`, then discusses the talk with you: its
-objective, its audience, the one takeaway, and the topics the material
-supports. The discussion is recorded in `notes.md` as it goes, with the
-evidence behind each topic and the gaps where evidence is missing. This phase
-ends with a vision; slides come in the next one.
+Tell Claude what you want to dig into. From there it helps you assemble the
+material: writing down what you know, fetching the sources you name, finding
+others that would back a claim, and refining raw inputs into something
+citable. Files it adds to `data/` carry their origin, and your own files stay
+as you left them.
+
+Alongside, Claude discusses the talk with you: its objective, its audience,
+the one takeaway, and the topics the material supports. The discussion is
+recorded in `notes.md` as it goes, with the evidence behind each topic and
+the gaps where evidence is missing. This phase ends with a vision; slides
+come in the next one.
 
 ### 2. Plan — turn the vision into slides
 

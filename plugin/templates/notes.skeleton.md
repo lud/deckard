@@ -16,6 +16,14 @@ Who attends, what they already know, what they were shown before.
 
 The one thing they still remember tomorrow.
 
+## Material
+
+One row per file in `data/`.
+
+| File | What it holds | Origin |
+| ---- | ------------- | ------ |
+|      |               |        |
+
 ## Evidence inventory
 
 One row per claim, tying it to something in `data/`.

@@ -28,7 +28,7 @@ roughly in order but loop back freely.
 
 | # | Phase | Input | Output | Invocation |
 |---|-------|-------|--------|------------|
-| 1 | **Ideate** | `data/` (any inputs) + discussion with the user | **`notes.md`** — the brainstorm: material, exploration, tentative decisions, gaps | `/ideate` |
+| 1 | **Ideate** | the user's direction + `data/` (any inputs, grown during the phase) + discussion | **`notes.md`** — the brainstorm: material, exploration, tentative decisions, gaps | `/ideate` |
 | 2 | **Plan** | `notes.md` + `data/` | **`presentation.md`** — clean decisions + slides (§2) | `/plan` |
 | 3 | **Produce media** | `presentation.md` | media files + directives | `/media` |
 | 4 | **Build & publish** | `presentation.md` + brand kit | `slides.html` render; `slides-embedded.html` self-contained | automatic Stop hook for the render (§8); `/publish` for the shareable file |
@@ -51,8 +51,10 @@ back to ideate.
 ### Project layout
 
 ```
-data/               # user-provided inputs, freeform (csv, xlsx, json, md, notes,
-                    #   todos, survey dumps…). The tool reads it, never writes it.
+data/               # source material, freeform (csv, xlsx, json, md, notes, todos,
+                    #   survey dumps…). The user drops files in; /ideate adds
+                    #   fetched, authored and derived files with provenance, and
+                    #   leaves the user's own files as they are.
 notes.md            # /ideate's brainstorm & working memory — material, exploration,
                     #   rejected ideas, gaps, decision rationale. Allowed to be big
                     #   and messy; the messy half by design.
@@ -235,8 +237,17 @@ it but **mandates no specific tool**. Buckets:
 ## 3. Phase detail & the prompts that worked
 
 ### Phase 1 — Ideate
-A **discussion around `data/`**, not a one-shot write. Read every input in
-`data/` in full first, then talk it through with the user to settle: is there a
+A **discussion that builds and mines `data/`**, not a one-shot write. Every run
+opens by listing `data/`, reading every input in full, and reporting the
+inventory — new arrivals called out against the Material section of `notes.md`,
+since the user adds files between sessions. The user then says what they want
+to dig into, with the angles the inventory suggests offered as options. From
+there the agent helps assemble the material: **create** (write down what the
+user knows), **fetch** (sources the user names), **find** (propose and search
+for sources that fill a gap), **refine** (derive a citable file from a raw
+input). Files the agent adds carry their provenance; the user's own files stay
+as they are; every figure and quote traces to a source. Gathering interleaves
+with talking it through with the user to settle: is there a
 defined objective/outcome, or just topics to cover? Who's the audience and what
 did they already have? What's the one takeaway? Which available data backs each
 topic, and where is data *missing* to support a claim? Propose nothing until
@@ -247,6 +258,7 @@ defer.
 
 Output: **`notes.md`**, the brainstorm and working memory — deliberately the
 messy half (§2 layout). It holds:
+- **Material** — every file in `data/`, what it holds and where it came from.
 - **Tentative decisions** — objective (or "no fixed goal, these topics"),
   audience + prior coverage, key takeaway. These converge over the discussion;
   `/plan` distills the settled versions into `presentation.md` (their permanent,
@@ -631,7 +643,7 @@ deckard/                       # own repo: ~/src/deckard — the dev root
   .claude-plugin/plugin.json   # name: deck → prefix /deck:* ; displayName: Deckard
   skills/
     pipeline/SKILL.md          # shared background; every phase skill loads it first
-    ideate/SKILL.md            # scaffold bang, then discuss data/ → notes.md; re-run assesses delta (§3 P1)
+    ideate/SKILL.md            # scaffold bang, then inventory + build data/, discuss → notes.md; re-run assesses delta (§3 P1)
     plan/SKILL.md              # scaffold bang, then notes.md + data/ → presentation.md; re-run reconciles
     media/SKILL.md             # decide what each slide shows (§3 P3); fix 5.2
     publish/SKILL.md           # bang-command → build.mjs --publish; deterministic embed
